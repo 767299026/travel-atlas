@@ -37,7 +37,9 @@
     "share:cleanup": "tsx backend/src/cli/share-cleanup.ts",
     "test:browser:m41": "tsx scripts/browser-m41-check.ts",
     "atlas:setup": "tsx backend/src/cli/atlas-setup.ts",
-    "test:browser:pages": "tsx scripts/browser-pages-check.ts"
+    "test:browser:pages": "tsx scripts/browser-pages-check.ts",
+    "demo": "tsx scripts/demo.ts",
+    "test:browser:atlas": "tsx scripts/browser-atlas-check.ts"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

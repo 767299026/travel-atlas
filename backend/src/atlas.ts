@@ -3,7 +3,7 @@ import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from './db/client.js';
 import { repository } from './repository.js';
 import { resolvePlace } from './atlas-catalog.js';
-import { DomainError, isDate, type AtlasDetail, type AtlasOverview, type AtlasRecord, type AtlasPlace, type PlaceInput, type PlaceRecordInput } from '../../packages/contracts/src/index.js';
+import { DomainError, isDate, canonicalJson, type AtlasCityLayer, type AtlasDetail, type AtlasOverview, type AtlasRecord, type AtlasPlace, type PlaceInput, type PlaceRecordInput } from '../../packages/contracts/src/index.js';
 const matchesYear = (date: string | null, year: string) => year === 'all' || (year === 'unknown' ? !date : date?.startsWith(year + '-'));
 export function atlasService(database: Database) {
   const { db, schema: s } = database, storage = repository(database).storage;
@@ -33,6 +33,34 @@ export function atlasService(database: Database) {
       const diaries = await Promise.all(diaryRows.map(async d => { const [cover] = await db.select({ id: s.media.id }).from(s.diaryPhotos).innerJoin(s.media, eq(s.media.id, s.diaryPhotos.mediaId)).where(and(eq(s.diaryPhotos.diaryId, d.id), eq(s.media.ownerId, ownerId), eq(s.media.state, 'ready'))).orderBy(asc(s.diaryPhotos.sortOrder)).limit(1); return { ...d, coverUrl: cover ? `/api/v1/media/${cover.id}/content?variant=thumb` : null }; }));
       const alias = place.name.replace(/市$/, '') || place.name, plans = await db.select({ id: s.journeys.id, title: s.journeys.title }).from(s.journeys).where(and(eq(s.journeys.ownerId, ownerId), eq(s.journeys.status, 'planning'), sql`LOCATE(${alias}, CAST(${s.journeys.destinations} AS CHAR)) > 0`)).orderBy(desc(s.journeys.updatedAt)).limit(20);
       return { place, records: records.slice(cursor, cursor + 30), nextCursor: records.length > cursor + 30 ? cursor + 30 : null, journeys, plans, diaries };
+    },
+    async cityLayer(ownerId: string, place: AtlasPlace, year = 'all'): Promise<AtlasCityLayer> {
+      if (place.countryCode !== 'CHN' || !place.cityCode || !/^\d{6}$/.test(place.cityCode)) throw new DomainError('INVALID_PLACE', '请选择目录中的国内城市。');
+      const visits = (await db.select().from(s.visits).where(and(eq(s.visits.ownerId, ownerId), sql`JSON_UNQUOTE(JSON_EXTRACT(${s.visits.place}, '$.cityCode')) = ${place.cityCode}`)).orderBy(desc(s.visits.visitedOn), asc(s.visits.id))).filter(v => matchesYear(v.visitedOn, year));
+      const located = visits.filter(v => v.location), points = located.slice(0, 500).map(v => ({ id: v.id, label: v.label, visitedOn: v.visitedOn, location: v.location!, journeyId: v.journeyId, routeId: v.routeId }));
+      const activeVisits = new Map(located.map(v => [v.stopId, v]));
+      const routeIds = [...new Set(located.map(v => v.routeId))];
+      const candidates = routeIds.length ? await db.select({ segment: s.segments, asset: s.geometries, journey: s.journeys, from: s.stops }).from(s.segments)
+        .innerJoin(s.geometries, and(eq(s.geometries.id, s.segments.geometryRef), eq(s.geometries.ownerId, ownerId), eq(s.geometries.routeId, s.segments.routeId)))
+        .innerJoin(s.routes, and(eq(s.routes.id, s.segments.routeId), eq(s.routes.ownerId, ownerId), eq(s.routes.layer, 'actual')))
+        .innerJoin(s.journeys, and(eq(s.journeys.id, s.routes.journeyId), eq(s.journeys.ownerId, ownerId)))
+        .innerJoin(s.stops, eq(s.stops.id, s.segments.fromStopId))
+        .where(and(inArray(s.segments.routeId, routeIds), eq(s.segments.geometryStatus, 'ready'), eq(s.segments.kind, 'travel'))).orderBy(desc(s.geometries.createdAt)).limit(61) : [];
+      const destinations = candidates.length ? await db.select().from(s.stops).where(inArray(s.stops.id, candidates.map(c => c.segment.toStopId))) : [];
+      const paths: AtlasCityLayer['paths'] = [];
+      for (const c of candidates.slice(0, 60)) {
+        const a = activeVisits.get(c.segment.fromStopId), b = activeVisits.get(c.segment.toStopId), to = destinations.find(p => p.id === c.segment.toStopId);
+        if (!a || !b || !to || canonicalJson(a.location) !== canonicalJson(c.from.location) || canonicalJson(b.location) !== canonicalJson(to.location)) continue;
+        paths.push({ id: c.asset.id, journeyId: c.journey.id, title: c.journey.title, sourceKind: c.asset.sourceKind, geometry: c.asset.geometry, reviewStatus: c.segment.reviewStatus });
+      }
+      const manual = (await rows(ownerId)).filter(r => r.source === 'manual' && r.place?.cityCode === place.cityCode && matchesYear(r.visitedOn, year)).length;
+      let sampled = false;
+      const displayPaths = paths.slice(0, 20).map(path => {
+        const total = path.geometry.parts.reduce((n, p) => n + p.length, 0); if (total <= 300) return path; sampled = true;
+        const budget = Math.max(0, 300 - path.geometry.parts.length * 2);
+        return { ...path, geometry: { crs: path.geometry.crs, parts: path.geometry.parts.map(part => { const n = Math.min(part.length, 2 + Math.floor(budget * part.length / total)); return Array.from({ length: n }, (_, i) => part[Math.round(i * (part.length - 1) / (n - 1))]!); }) } };
+      });
+      return { place, points, paths: displayPaths, withoutLocation: visits.length - located.length + manual, truncated: located.length > 500 || candidates.length > 60 || paths.length > 20, sampled };
     },
     async resolveKey(ownerId: string, key: string) {
       const saved = (await rows(ownerId)).find(r => r.place?.key === key)?.place; if (saved) return saved;

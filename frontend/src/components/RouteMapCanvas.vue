@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
-import { api, ApiError, errorText } from '../api';
+import { ApiError, errorText } from '../api';
+import { loadAMap } from '../maps/amap';
 import { validPosition, type Location, type RouteGeometry, type Position } from '../../../packages/contracts/src/index.js';
 const props = defineProps<{ locations: { id: string; label: string; location: Location | null }[]; geometry: RouteGeometry | null; action: 'none' | 'point' | 'draw' }>();
 const emit = defineEmits<{ pick: [location: Location] }>();
@@ -17,17 +18,7 @@ const sketch = computed(() => {
 async function load() {
   if (loading.value || map) return; loading.value = true; error.value = '';
   try {
-    const capabilities = await api<{ amap: { jsKey: string; serviceHost: string } | null }>('/maps/capabilities');
-    if (!capabilities.amap) throw new Error('在线地图尚未配置，可以使用坐标和 GPX。');
-    const config = capabilities.amap;
-    if (!(window as any).AMap) await new Promise<void>((resolve, reject) => {
-      (window as any)._AMapSecurityConfig = { serviceHost: location.origin + config.serviceHost };
-      const script = document.createElement('script'); let timer: ReturnType<typeof setTimeout>;
-      const finish = (failed: boolean) => { clearTimeout(timer); script.onload = null; script.onerror = null; if (failed) { script.remove(); reject(new Error('在线地图加载失败，请检查网络或稍后重试。')); } else resolve(); };
-      script.src = 'https://webapi.amap.com/maps?v=2.0&key=' + encodeURIComponent(config.jsKey); script.async = true;
-      script.onload = () => finish(!(window as any).AMap); script.onerror = () => finish(true); timer = setTimeout(() => finish(true), 18000); document.head.append(script);
-    });
-    if (disposed) return; sdk = (window as any).AMap;
+    sdk = await loadAMap(); if (disposed) return;
     map = new sdk.Map(container.value, { zoom: 4, center: [105, 35], viewMode: '2D', resizeEnable: true });
     map.on('click', (event: any) => { const lng = event.lnglat?.getLng(), lat = event.lnglat?.getLat(); if (props.action !== 'none' && validPosition([lng, lat])) emit('pick', { longitude: lng, latitude: lat, crs: 'GCJ02', source: 'amap_pick' }); });
     online.value = true; await render(true);

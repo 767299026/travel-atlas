@@ -11,3 +11,9 @@ export interface AtlasMap { features: AtlasGeometry[]; attribution: string; sour
 export interface PlaceRecordInput { kind: 'visited' | 'wish'; place: PlaceInput; visitedOn: string | null; note: string }
 export interface PersonalProfile { username: string; displayName: string; version: number }
 export const placeInputFor = (place: AtlasPlace): PlaceInput => place.countryCode === 'CHN' ? { countryCode: 'CHN', areaCode: place.cityCode ?? place.provinceCode!, ...(!place.cityCode && place.cityName ? { cityName: place.cityName } : {}) } : { countryCode: place.countryCode, cityName: place.cityName! };
+export interface AtlasCityLayer {
+  place: AtlasPlace;
+  points: { id: string; label: string; visitedOn: string; location: Location; journeyId: string; routeId: string }[];
+  paths: { id: string; journeyId: string; title: string; sourceKind: 'manual' | 'imported_reference' | 'routing'; geometry: import('./maps.js').RouteGeometry; reviewStatus: string }[];
+  withoutLocation: number; truncated: boolean; sampled: boolean;
+}
