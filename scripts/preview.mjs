@@ -1,0 +1,10 @@
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+const app = process.argv[2] ?? 'frontend';
+if (!['frontend', 'admin'].includes(app)) throw new Error('Unknown web application');
+const root = fileURLToPath(new URL('../', import.meta.url)), directory = join(root, app);
+const vite = join(dirname(createRequire(join(directory, 'package.json')).resolve('vite/package.json')), 'bin/vite.js');
+process.chdir(directory);
+process.argv = [process.execPath, vite, 'preview', '--host', '127.0.0.1', '--port', app === 'admin' ? '5179' : '5178', '--strictPort'];
+await import(pathToFileURL(vite).href);

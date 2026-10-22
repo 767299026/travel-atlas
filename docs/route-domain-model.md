@@ -1,6 +1,6 @@
 # 行程与路线数据模型草案
 
-版本：v0.1，2026-10-21。状态：**长期模型建议稿；M1 计划路线、地点、连接、版本和权限子集已建表实现，其他能力尚未实现**。依据 [产品方案](product-plan.md)、[v4 原型](prototype-design.md) 及 [地图验证](validation-plan.md)。接口配套见 [路线 API 草案](route-api-contract.md)。新增字段与约束不因本次归档自动变成用户已确认决定。
+版本：v0.1，更新 2026-10-22。状态：**长期模型建议稿；M1 计划编辑与 M2 实际记录、到访、私密图文子集已建表，几何／任务等其他能力尚未实现**。依据 [产品方案](product-plan.md)、[v4 原型](prototype-design.md) 及 [地图验证](validation-plan.md)。接口配套见 [路线 API 草案](route-api-contract.md)；实际字段以 `backend/src/db/schema.ts` 与共享契约为准，当前 M2 范围见 [专项记录](m2-records.md)。新增字段与约束不因归档自动变成用户已确认决定。
 
 ## 1. 模型要表达的事实
 

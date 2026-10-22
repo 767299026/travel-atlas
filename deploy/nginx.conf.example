@@ -5,7 +5,8 @@ server {
     server_name localhost;
     root /opt/projects/travel-journal/frontend/dist;
     index index.html;
-    client_max_body_size 128k;
+    # 20 MiB image plus multipart envelope; JSON API still enforces 128 KiB.
+    client_max_body_size 21m;
 
     location ^~ /api/ {
         proxy_pass http://127.0.0.1:3080;

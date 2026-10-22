@@ -2,21 +2,32 @@
   "name": "travel-journal",
   "private": true,
   "type": "module",
-  "workspaces": ["backend", "frontend"],
-  "engines": { "node": ">=24 <25" },
+  "workspaces": [
+    "backend",
+    "frontend",
+    "admin"
+  ],
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "dev": "node --experimental-strip-types scripts/dev.ts",
     "dev:api": "npm run dev --workspace @travel-atlas/backend",
     "dev:web": "npm run dev --workspace @travel-atlas/frontend",
-    "build": "npm run build --workspace @travel-atlas/backend && npm run build --workspace @travel-atlas/frontend",
-    "typecheck": "npm run typecheck --workspace @travel-atlas/backend && npm run typecheck --workspace @travel-atlas/frontend",
+    "build": "npm run build --workspace @travel-atlas/backend && npm run build --workspace @travel-atlas/frontend && npm run build --workspace @travel-atlas/admin",
+    "typecheck": "npm run typecheck --workspace @travel-atlas/backend && npm run typecheck --workspace @travel-atlas/frontend && npm run typecheck --workspace @travel-atlas/admin",
     "test": "npm run test --workspace @travel-atlas/backend",
     "test:browser": "tsx scripts/browser-check.ts",
+    "test:browser:m2": "tsx scripts/browser-m2-check.ts",
     "db:generate": "drizzle-kit generate --config backend/drizzle.config.ts",
     "db:migrate": "tsx backend/src/cli/migrate.ts",
+    "db:backup": "tsx backend/src/cli/backup.ts",
     "user:init": "tsx backend/src/cli/user-init.ts",
     "start:api": "node dist/backend/src/server.js",
-    "preview": "npm run preview --workspace @travel-atlas/frontend"
+    "preview": "node scripts/preview.mjs frontend",
+    "dev:admin": "npm run dev --workspace @travel-atlas/admin",
+    "preview:admin": "node scripts/preview.mjs admin",
+    "media:cleanup": "tsx backend/src/cli/media-cleanup.ts"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

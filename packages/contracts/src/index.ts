@@ -6,14 +6,15 @@ export const modeLabels: Record<TravelMode, string> = {
 };
 export interface Location { longitude: number; latitude: number; crs: 'WGS84' | 'GCJ02' | 'BD09' }
 export interface StopInput { label: string; region: string; time: string | null; note: string; role: 'departure' | 'visit' | 'waypoint' | 'transfer' | 'overnight'; location: Location | null }
-export interface RouteStop extends StopInput { id: string }
-export interface RouteDay { id: string; title: string; area: string; date: string | null; stayName: string; stops: RouteStop[] }
+export interface CopySource { routeId: string; version: number; id?: string }
+export interface RouteStop extends StopInput { id: string; copiedFrom?: CopySource | null }
+export interface RouteDay { id: string; title: string; area: string; date: string | null; stayName: string; stops: RouteStop[]; copiedFrom?: CopySource | null }
 export interface RouteSegment {
   id: string; fromStopId: string; toStopId: string; kind: 'travel' | 'gap'; mode: TravelMode;
   geometryStatus: 'missing' | 'ready' | 'stale'; reviewStatus: 'unreviewed' | 'needs_attention' | 'confirmed';
   geometryRef: string | null; geometryLocked: boolean;
 }
-export interface RouteSnapshot { id: string; journeyId: string; layer: 'plan' | 'actual'; version: number; note: string; days: RouteDay[]; segments: RouteSegment[] }
+export interface RouteSnapshot { id: string; journeyId: string; layer: 'plan' | 'actual'; version: number; note: string; days: RouteDay[]; segments: RouteSegment[]; copiedFrom?: CopySource | null }
 export interface JourneySummary {
   id: string; title: string; destinations: string[]; status: 'planning' | 'completed' | 'archived';
   version: number; timezone: string; createdAt: string; updatedAt: string; planRouteId: string; actualRouteId: string | null; dayCount: number;
@@ -33,6 +34,7 @@ export type RouteCommand =
 export interface CommandRequest { baseVersion: number; clientMutationId: string; operations: RouteCommand[] }
 export interface CommandResult { route: RouteSnapshot; idMap: Record<string, string>; invalidatedSegmentIds: string[] }
 export interface JourneyList { items: JourneySummary[]; nextCursor: string | null }
+export * from './records.js';
 
 export class DomainError extends Error {
   constructor(public code: string, message: string, public statusCode = 422) { super(message); }
@@ -95,14 +97,14 @@ export function applyCommands(input: RouteSnapshot, operations: RouteCommand[], 
   };
   for (const op of operations) {
     switch (op.type) {
-      case 'add_day': route.days.push({ id: addId(op.clientRef), title: op.title.trim(), area: op.area.trim(), date: op.date, stayName: '', stops: [] }); break;
+      case 'add_day': route.days.push({ id: addId(op.clientRef), title: op.title.trim(), area: op.area.trim(), date: op.date, stayName: '', stops: [], copiedFrom: null }); break;
       case 'update_day': Object.assign(day(op.dayId), op.patch); break;
       case 'remove_day': {
         const d = day(op.dayId);
         if (route.days.length <= 1 || d.stops.length) throw new DomainError('DAY_NOT_EMPTY', '至少保留一天；删除日期前请先移动或移除地点。');
         route.days = route.days.filter(x => x.id !== d.id); break;
       }
-      case 'add_stop': day(op.dayId).stops.push({ ...clone(op.stop), label: op.stop.label.trim(), id: addId(op.clientRef) }); reconcile(); arrival(op.clientRef, op.arrivalMode); break;
+      case 'add_stop': day(op.dayId).stops.push({ ...clone(op.stop), label: op.stop.label.trim(), id: addId(op.clientRef), copiedFrom: null }); reconcile(); arrival(op.clientRef, op.arrivalMode); break;
       case 'update_stop': {
         const p = point(op.stopId).stop;
         if ('location' in op.patch && canonicalJson(p.location) !== canonicalJson(op.patch.location)) invalidate(p.id);

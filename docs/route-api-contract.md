@@ -1,6 +1,6 @@
 # 路线 API 与供应商适配草案
 
-版本：v0.1，2026-10-21。状态：**长期 API 草案；M1 子集已在本机实现，其余端点尚未实现**。数据含义以 [路线模型](route-domain-model.md) 为准。本稿确定长期交互边界；M1 已采用 Fastify／TypeBox、Drizzle／mysql2，实际请求字段以共享契约与 JSON Schema 为准，尚未生成 OpenAPI。运行端点与范围见 [开发说明](development.md)。
+版本：v0.1，更新 2026-10-22。状态：**长期 API 草案；M1 编辑与 M2 实际记录、到访、私密图文／用户管理子集已实现，其余端点尚未实现**。数据含义以 [路线模型](route-domain-model.md) 为准。实际 URL 和请求字段以运行代码、共享契约与 TypeBox Schema 为准，尚未生成 OpenAPI；本稿中长期草案的路径可能与当前实现不同。范围见 [开发说明](development.md) 和 [M2 接口清单](m2-records.md#当前接口)。
 
 ## 1. 通用约定
 

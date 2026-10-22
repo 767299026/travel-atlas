@@ -1,6 +1,6 @@
 # 技术方案与初步选型
 
-更新／官方资料核查：2026-10-21。本文记录技术选择；M1 已采用 Fastify／TypeBox、Drizzle／mysql2，安装和验收见 [开发记录](development.md)。其他模块仍按表内状态区分。状态以 [决策记录](decisions.md) 为准；具体版本在实现时锁定兼容的稳定版本。
+更新：2026-10-22（通用官方资料核查为 2026-10-21，M2 新依赖为 2026-10-22）。本文记录技术选择；M1–M2 已采用 Fastify／TypeBox、Drizzle／mysql2、Sharp 与独立 Vue 管理端，安装和验收见 [开发记录](development.md)。其他模块按表内状态区分。状态以 [决策记录](decisions.md) 为准；精确版本锁定于 lockfile。
 
 ## 1. 范围与可行性结论
 
@@ -14,8 +14,8 @@
 | --- | --- | --- |
 | 使用端 | Vue 3 + Vite + TypeScript | 已确认，以 v4 为设计依据 |
 | 路由与状态 | Vue Router + Vue 响应式状态；Pinia 按需 | M1 已采用，无独立状态库 |
-| 使用端 UI | 复用 OpenDesign CSS／图标／结构，迁移 Vue 组件 | M1 已采用；页面懒加载后续按包体需要 |
-| 管理端 | 独立 Vue 构建 + Element Plus | 独立界面已确认，组件库初选 |
+| 使用端 UI | 复用 OpenDesign CSS／图标／结构，迁移 Vue 组件 | M1–M2 已采用，日记页懒加载 |
+| 管理端 | 独立 Vue 构建、共用基础样式／组件 | M2 已实现，未引入 Element Plus |
 | 安卓 | Capacitor 复用网页资源，插件处理系统能力 | 预留，后置真机验证 |
 | 足迹总览 | 矢量行政区图、自己的统计与标记 | 保留原型方向，核对边界数据来源 |
 | 详细地图 | 高德 JS API 优先验证，腾讯主要备选 | 本机基础链路已通；目标线路、生产域名及授权待验 |
@@ -25,15 +25,15 @@
 | 路线编辑 | 分日地点、分段交通、计划／实际及版本 | 首版核心 |
 | 文件互通 | GPX／GeoJSON 导入导出 | 验证坐标、权限与断段保留 |
 | 海拔地形 | 文件海拔或外部高程数据 | 后置，标注估算及来源 |
-| API 框架 | Fastify；Express、NestJS 为备选 | 建议 Fastify，不为当前规模引入重型分层 |
-| 校验与契约 | TypeBox／JSON Schema + OpenAPI | 建议初选；TS 类型不代替运行时校验 |
-| 数据访问 | Drizzle + mysql2；Prisma 或显式 SQL 为备选 | 建议初选，含迁移与事务验证 |
-| 数据库 | 本机 MySQL 8.4，独立库与账号 | CLI 认证／选库／库级授权已验，Node 驱动、迁移与持久化待验 |
-| 登录 | 密码认证 + 服务端会话 | 初选，当前单用户、后续多用户 |
+| API 框架 | Fastify | M1–M2 已采用 |
+| 校验与契约 | TypeBox／JSON Schema；OpenAPI 后续 | 已采用运行时校验，尚未生成 OpenAPI |
+| 数据访问 | Drizzle + mysql2 | 迁移、事务与版本并发已验证 |
+| 数据库 | 本机 MySQL 8.4，独立库与账号 | M2 迁移后 14 张业务表和账本；驱动与持久化已验 |
+| 登录 | 密码认证 + 服务端会话 | M1 已采用，M2 加入用户管理与撤销 |
 | 权限 | 角色、owner_id、内容可见性、管理 API 校验 | 首版建立 |
-| 图文 | 简单内容块先行，复杂排版再引入 Tiptap | 初选，避免首版编辑器过重 |
-| 图片处理 | Sharp 缩放、旋转、压缩；EXIF 提取 | 先验证手机样本 |
-| 媒体存储 | 统一接口支持本地／对象存储 | 长期优先对象存储，供应商待定 |
+| 图文 | 纯文本段落、有序照片及说明 | M2 已采用，富文本后置 |
+| 图片处理 | Sharp 缩放、旋转、压缩；衍生图去除 EXIF 等元数据 | 静态格式和合成 EXIF 样本已验；真手机样本待补 |
+| 媒体存储 | 本机私有目录，保留存储类边界 | M2 已采用；对象存储供应商和整体恢复待验 |
 | 思源接入 | 官方 API 单向增量读取，提取后审核 | 建议初选，先验证少量资料 |
 | 基础搜索 | 结构化筛选、别名、关键词、MySQL ngram 全文检索 | 先行验证 |
 | 语义搜索 | 复用已有 Qdrant，独立 collection | 根据搜索效果引入 |
@@ -42,7 +42,7 @@
 | 任务执行 | MySQL 任务表、定时扫描、限并发与重试 | 初期建议；复杂后再评估 Redis 队列 |
 | 分享 | 服务端权限、可撤销链接、访客阅读页 | 核心实现；海报等后置 |
 | 导出与备份 | 业务 JSON／图文／媒体备份、MySQL 备份及恢复 | 与正式存储一起建设 |
-| 部署 | OpenResty + 静态前端 + 单 API 服务 | 复用环境，Docker Compose 初选，systemd 备选 |
+| 部署 | OpenResty + 独立前端 + 单 API 服务 | 当前 preview 用 screen（用户要求），不使用 systemd；正式静态托管按 M4 |
 | 验证与运维 | 接口、关键浏览器流程、健康检查、结构化日志 | 开发时建立 |
 
 官方能力参考：[Vue 状态管理](https://vuejs.org/guide/scaling-up/state-management.html)、[Vue Router](https://router.vuejs.org/)、[Element Plus](https://element-plus.org/en-US/)、[Fastify 类型与校验](https://fastify.dev/docs/latest/Reference/Type-Providers/)、[Fastify OpenAPI 插件](https://github.com/fastify/fastify-swagger)、[Drizzle MySQL](https://orm.drizzle.team/docs/mysql/get-started-mysql)。
@@ -61,7 +61,7 @@ Go 同样能实现所有业务，编译部署和多核并行是可行优势；�
 
 使用端保留 v4 的视觉与交互，逐步转换为 Vue 组件；原型代码不是已经接入正式 API 的应用。管理端独立页面、独立构建，避免组件和资源被打入使用端首屏。
 
-建议仓库内部共享接口契约、业务类型和基础校验，使用端、管理端、后端分别组织。当前仅有 `frontend/`、`backend/` 预留目录，管理端及共享包的实际目录在实现时确定。
+仓库共享接口契约、业务类型和基础校验，使用端 `frontend/`、管理端 `admin/`、后端 `backend/` 分别组织，共享契约在 `packages/contracts/`。管理端不混入使用端资源与导航。
 
 网站先采用静态资源 + API。Capacitor 后续验证登录会话、来源限制、地图加载、照片选择、返回键、安全区与键盘。网页打包不等于完全无需适配，也不等于所有平台可共用同一种地图 Key。
 
@@ -82,7 +82,7 @@ Go 同样能实现所有业务，编译部署和多核并行是可行优势；�
 
 MySQL 普通关系表 + 明确坐标系的几何 JSON 可起步；空间索引由实际范围／邻近查询决定，不预先引入第二套空间数据库。外键、事务与变更版本保证跨对象一致性。
 
-路线部分已细化为 [数据模型 v0.1](route-domain-model.md) 与 [API／适配契约 v0.1](route-api-contract.md)：计划和实际独立对象，编辑使用版本化命令，自动计算只产生候选，输入指纹防止迟到结果覆盖新安排。两文档描述完整目标；M1 计划编辑、事务、版本和归属子集已实现，actual 与异步几何候选后续加入。
+路线部分已细化为 [数据模型 v0.1](route-domain-model.md) 与 [API／适配契约 v0.1](route-api-contract.md)：计划和实际独立对象，编辑使用版本化命令，自动计算只产生候选，输入指纹防止迟到结果覆盖新安排。两文档描述完整目标；M1 编辑、事务、版本和归属与 M2 actual 已实现，异步几何候选后续加入。
 
 M1 网站会话已使用 HttpOnly／SameSite Cookie、数据库会话撤销、CSRF 和请求来源检查；Secure 在 HTTPS 部署启用，本机 HTTP 预览关闭。未来安卓认证方式另行适配。不可仅依赖前端隐藏按钮保证权限。
 

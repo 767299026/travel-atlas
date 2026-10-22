@@ -1,6 +1,7 @@
 import Fastify, { type FastifyRequest } from 'fastify';
 import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
+import multipart from '@fastify/multipart';
 import { timingSafeEqual } from 'node:crypto';
 import { and, eq, gt, lt } from 'drizzle-orm';
 import type { AppConfig } from './config.js';
@@ -9,13 +10,16 @@ import { hashToken, randomToken, verifyPassword, dummyHash } from './security.js
 import { repository } from './repository.js';
 import { commandsSchema, createSchema, loginSchema, metadataSchema } from './schemas.js';
 import { DomainError, type CommandRequest, type JourneyCreate, type SessionData } from '../../packages/contracts/src/index.js';
+import { registerRecordRoutes } from './record-routes.js';
+import { registerAdminRoutes } from './admin.js';
 
 interface Auth extends SessionData { tokenHash: string }
 declare module 'fastify' { interface FastifyRequest { auth: Auth | null } }
 export async function buildApp(config: AppConfig, database: Database) {
   const app = Fastify({ logger: false, bodyLimit: 131072, ajv: { customOptions: { removeAdditional: false, coerceTypes: false } } });
   const { db, schema: s } = database; const store = repository(database); const cookieName = 'atlas_session'; let hashing = 0;
-  await app.register(cookie); await app.register(rateLimit, { max: 180, timeWindow: '1 minute' });
+  await app.register(cookie); await app.register(rateLimit, { max: config.rateLimitMax ?? 180, timeWindow: '1 minute' });
+  await app.register(multipart, { limits: { fileSize: config.uploadMaxBytes, files: 1, fields: 0, parts: 1 } });
   app.decorateRequest('auth', null);
   app.addHook('onRequest', async (_request, reply) => { reply.header('X-Content-Type-Options', 'nosniff'); reply.header('Cache-Control', 'no-store'); });
   const response = (request: FastifyRequest, data: unknown) => ({ data, meta: { requestId: request.id } });
@@ -69,5 +73,7 @@ export async function buildApp(config: AppConfig, database: Database) {
   app.patch<{ Params: { id: string }; Body: Metadata }>('/api/v1/journeys/:id', { preHandler: authenticate, schema: { body: metadataSchema } }, async request => response(request, await store.metadata(request.auth!.user.id, request.params.id, request.body)));
   app.get<{ Params: { id: string } }>('/api/v1/routes/:id', { preHandler: authenticate }, async request => response(request, await store.readRoute(request.auth!.user.id, request.params.id)));
   app.post<{ Params: { id: string }; Body: CommandRequest }>('/api/v1/routes/:id/commands', { preHandler: authenticate, schema: { body: commandsSchema } }, async request => response(request, await store.commands(request.auth!.user.id, request.params.id, request.body)));
+  registerRecordRoutes(app, database, config, { authenticate, respond: response });
+  registerAdminRoutes(app, database, { authenticate, respond: response });
   return app;
 }

@@ -1,5 +1,5 @@
 import { mysqlTableCreator, varchar, text, int, boolean, datetime, json, mysqlEnum, uniqueIndex, index, foreignKey } from 'drizzle-orm/mysql-core';
-import type { Location, RouteSnapshot, TravelMode } from '../../../packages/contracts/src/index.js';
+import type { Location, RouteSnapshot, TravelMode, CopySource, DiaryAssociation } from '../../../packages/contracts/src/index.js';
 
 export function buildSchema(prefix = '') {
   const table = mysqlTableCreator(name => prefix + name);
@@ -8,7 +8,7 @@ export function buildSchema(prefix = '') {
   const users = table('users', {
     id: id(), username: varchar('username', { length: 64 }).notNull(), displayName: varchar('display_name', { length: 80 }).notNull(),
     passwordHash: varchar('password_hash', { length: 256 }).notNull(), role: varchar('role', { length: 20 }).notNull().default('owner'),
-    active: boolean('active').notNull().default(true), createdAt: created(),
+    active: boolean('active').notNull().default(true), version: int('version').notNull().default(1), createdAt: created(),
   }, t => [uniqueIndex(prefix + 'users_username_uq').on(t.username)]);
   const sessions = table('sessions', {
     tokenHash: varchar('token_hash', { length: 64 }).primaryKey(), userId: varchar('user_id', { length: 36 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -23,16 +23,16 @@ export function buildSchema(prefix = '') {
   const routes = table('journey_routes', {
     id: id(), journeyId: varchar('journey_id', { length: 36 }).notNull().references(() => journeys.id, { onDelete: 'cascade' }),
     ownerId: varchar('owner_id', { length: 36 }).notNull().references(() => users.id), layer: mysqlEnum('layer', ['plan', 'actual']).notNull(),
-    version: int('version').notNull().default(1), note: text('note').notNull(), createdAt: created(), updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    version: int('version').notNull().default(1), note: text('note').notNull(), copiedFrom: json('copied_from').$type<CopySource | null>(), createdAt: created(), updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
   }, t => [uniqueIndex(prefix + 'routes_journey_layer_uq').on(t.journeyId, t.layer), index(prefix + 'routes_owner_idx').on(t.ownerId)]);
   const days = table('route_days', {
     id: id(), routeId: varchar('route_id', { length: 36 }).notNull().references(() => routes.id, { onDelete: 'cascade' }), sortOrder: int('sort_order').notNull(),
-    title: varchar('title', { length: 80 }).notNull(), area: varchar('area', { length: 120 }).notNull(), date: varchar('local_date', { length: 10 }), stayName: varchar('stay_name', { length: 160 }).notNull(),
+    title: varchar('title', { length: 80 }).notNull(), area: varchar('area', { length: 120 }).notNull(), date: varchar('local_date', { length: 10 }), stayName: varchar('stay_name', { length: 160 }).notNull(), copiedFrom: json('copied_from').$type<CopySource | null>(),
   }, t => [index(prefix + 'days_route_order_idx').on(t.routeId, t.sortOrder)]);
   const stops = table('route_stops', {
     id: id(), routeId: varchar('route_id', { length: 36 }).notNull().references(() => routes.id, { onDelete: 'cascade' }), dayId: varchar('day_id', { length: 36 }).notNull().references(() => days.id, { onDelete: 'cascade' }), sortOrder: int('sort_order').notNull(),
     label: varchar('label', { length: 160 }).notNull(), region: varchar('region', { length: 120 }).notNull(), time: varchar('local_time', { length: 5 }), note: text('note').notNull(),
-    role: mysqlEnum('role', ['departure', 'visit', 'waypoint', 'transfer', 'overnight']).notNull(), location: json('location').$type<Location | null>(),
+    role: mysqlEnum('role', ['departure', 'visit', 'waypoint', 'transfer', 'overnight']).notNull(), location: json('location').$type<Location | null>(), copiedFrom: json('copied_from').$type<CopySource | null>(),
   }, t => [index(prefix + 'stops_day_order_idx').on(t.dayId, t.sortOrder), index(prefix + 'stops_route_idx').on(t.routeId)]);
   const segments = table('route_segments', {
     id: id(), routeId: varchar('route_id', { length: 36 }).notNull().references(() => routes.id, { onDelete: 'cascade' }),
@@ -50,6 +50,27 @@ export function buildSchema(prefix = '') {
     scope: varchar('scope', { length: 100 }).notNull(), key: varchar('mutation_key', { length: 80 }).notNull(), requestHash: varchar('request_hash', { length: 64 }).notNull(),
     response: json('response').$type<unknown>().notNull(), createdAt: created(), expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
   }, t => [uniqueIndex(prefix + 'mutations_owner_scope_key_uq').on(t.ownerId, t.scope, t.key), index(prefix + 'mutations_expiry_idx').on(t.expiresAt)]);
-  return { users, sessions, journeys, routes, days, stops, segments, revisions, mutations };
+  const visits = table('visits', {
+    id: id(), ownerId: varchar('owner_id', { length: 36 }).notNull().references(() => users.id), journeyId: varchar('journey_id', { length: 36 }).notNull().references(() => journeys.id),
+    routeId: varchar('route_id', { length: 36 }).notNull().references(() => routes.id), stopId: varchar('stop_id', { length: 36 }).notNull(),
+    label: varchar('label', { length: 160 }).notNull(), region: varchar('region', { length: 120 }).notNull(), visitedOn: varchar('visited_on', { length: 10 }).notNull(), note: text('note').notNull(), createdAt: created(),
+  }, t => [uniqueIndex(prefix + 'visits_owner_stop_uq').on(t.ownerId, t.stopId), index(prefix + 'visits_owner_journey_idx').on(t.ownerId, t.journeyId)]);
+  const diaries = table('diaries', {
+    id: id(), ownerId: varchar('owner_id', { length: 36 }).notNull().references(() => users.id), title: varchar('title', { length: 120 }).notNull(),
+    occurredOn: varchar('occurred_on', { length: 10 }), body: text('body').notNull(), status: mysqlEnum('status', ['draft', 'written']).notNull(), association: json('association').$type<DiaryAssociation | null>(),
+    version: int('version').notNull().default(1), createdAt: created(), updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  }, t => [index(prefix + 'diaries_owner_created_idx').on(t.ownerId, t.createdAt)]);
+  const media = table('media', {
+    id: id(), ownerId: varchar('owner_id', { length: 36 }).notNull().references(() => users.id), filename: varchar('filename', { length: 200 }).notNull(), extension: varchar('extension', { length: 8 }).notNull(),
+    width: int('width').notNull(), height: int('height').notNull(), originalBytes: int('original_bytes').notNull(), storedBytes: int('stored_bytes').notNull(), checksum: varchar('checksum', { length: 64 }).notNull(),
+    state: mysqlEnum('state', ['ready', 'deleted']).notNull().default('ready'), createdAt: created(),
+  }, t => [index(prefix + 'media_owner_state_idx').on(t.ownerId, t.state)]);
+  const diaryPhotos = table('diary_photos', {
+    id: id(), diaryId: varchar('diary_id', { length: 36 }).notNull().references(() => diaries.id, { onDelete: 'cascade' }), mediaId: varchar('media_id', { length: 36 }).notNull().references(() => media.id), sortOrder: int('sort_order').notNull(), caption: varchar('caption', { length: 1000 }).notNull(),
+  }, t => [uniqueIndex(prefix + 'diary_photos_media_uq').on(t.mediaId), index(prefix + 'diary_photos_order_idx').on(t.diaryId, t.sortOrder)]);
+  const auditEvents = table('audit_events', {
+    id: id(), actorId: varchar('actor_id', { length: 36 }).notNull().references(() => users.id), action: varchar('action', { length: 40 }).notNull(), targetId: varchar('target_id', { length: 36 }).notNull(), createdAt: created(),
+  }, t => [index(prefix + 'audit_created_idx').on(t.createdAt)]);
+  return { users, sessions, journeys, routes, days, stops, segments, revisions, mutations, visits, diaries, media, diaryPhotos, auditEvents };
 }
-export const { users, sessions, journeys, routes, days, stops, segments, revisions, mutations } = buildSchema();
+export const { users, sessions, journeys, routes, days, stops, segments, revisions, mutations, visits, diaries, media, diaryPhotos, auditEvents } = buildSchema();

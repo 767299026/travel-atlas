@@ -1,0 +1,6 @@
+{
+  "name": "@travel-atlas/admin", "private": true, "type": "module",
+  "scripts": { "dev": "vite --host 127.0.0.1 --port 5179 --strictPort", "typecheck": "vue-tsc --noEmit", "build": "vue-tsc --noEmit && vite build" },
+  "dependencies": { "vue": "3.5.44" },
+  "devDependencies": { "@vitejs/plugin-vue": "6.0.10", "vite": "8.3.5", "vue-tsc": "3.3.13" }
+}

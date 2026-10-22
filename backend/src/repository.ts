@@ -12,8 +12,8 @@ export function repository(database: Database) {
     const days = await executor.select().from(s.days).where(eq(s.days.routeId, id)).orderBy(asc(s.days.sortOrder));
     const stops = await executor.select().from(s.stops).where(eq(s.stops.routeId, id)).orderBy(asc(s.stops.sortOrder));
     const segments = await executor.select().from(s.segments).where(eq(s.segments.routeId, id));
-    return { id, journeyId: route.journeyId, layer: route.layer, version: route.version, note: route.note,
-      days: days.map(d => ({ id: d.id, title: d.title, area: d.area, date: d.date, stayName: d.stayName, stops: stops.filter(p => p.dayId === d.id).map(p => ({ id: p.id, label: p.label, region: p.region, time: p.time, note: p.note, role: p.role, location: p.location })) })),
+    return { id, journeyId: route.journeyId, layer: route.layer, version: route.version, note: route.note, copiedFrom: route.copiedFrom,
+      days: days.map(d => ({ id: d.id, title: d.title, area: d.area, date: d.date, stayName: d.stayName, copiedFrom: d.copiedFrom, stops: stops.filter(p => p.dayId === d.id).map(p => ({ id: p.id, label: p.label, region: p.region, time: p.time, note: p.note, role: p.role, location: p.location, copiedFrom: p.copiedFrom })) })),
       segments: segments.map(({ routeId: _, ...segment }) => segment) };
   }
   async function summary(executor: DbExecutor, ownerId: string, id: string): Promise<JourneySummary> {
@@ -48,7 +48,7 @@ export function repository(database: Database) {
     const currentDays = await executor.select().from(s.days).where(eq(s.days.routeId, route.id));
     const currentStops = await executor.select().from(s.stops).where(eq(s.stops.routeId, route.id));
     for (const [sortOrder, day] of route.days.entries()) {
-      const values = { routeId: route.id, sortOrder, title: day.title, area: day.area, date: day.date, stayName: day.stayName };
+      const values = { routeId: route.id, sortOrder, title: day.title, area: day.area, date: day.date, stayName: day.stayName, copiedFrom: day.copiedFrom ?? null };
       await executor.insert(s.days).values({ id: day.id, ...values }).onDuplicateKeyUpdate({ set: values });
     }
     for (const day of route.days) for (const [sortOrder, stop] of day.stops.entries()) {
@@ -66,6 +66,7 @@ export function repository(database: Database) {
     }
   }
   return {
+    storage: { readRoute, summary, replay, remember, revision, persist },
     readRoute: (ownerId: string, id: string) => readRoute(db, ownerId, id),
     summary: (ownerId: string, id: string) => summary(db, ownerId, id),
     async list(ownerId: string, cursor?: string) {
@@ -101,6 +102,10 @@ export function repository(database: Database) {
     },
     async commands(ownerId: string, id: string, body: CommandRequest) {
       return db.transaction(async tx => {
+        await tx.select({ id: s.users.id }).from(s.users).where(eq(s.users.id, ownerId)).for('update');
+        const [identity] = await tx.select({ journeyId: s.routes.journeyId }).from(s.routes).where(and(eq(s.routes.id, id), eq(s.routes.ownerId, ownerId)));
+        if (!identity) throw new DomainError('NOT_FOUND', '未找到这条路线。', 404);
+        await tx.select({ id: s.journeys.id }).from(s.journeys).where(eq(s.journeys.id, identity.journeyId)).for('update');
         const [locked] = await tx.select().from(s.routes).where(and(eq(s.routes.id, id), eq(s.routes.ownerId, ownerId))).for('update');
         if (!locked) throw new DomainError('NOT_FOUND', '未找到这条路线。', 404);
         const scope = `routes:${id}`; const cached = await replay(tx, ownerId, scope, body.clientMutationId, body); if (cached.found) return cached.response;
@@ -114,6 +119,7 @@ export function repository(database: Database) {
     async metadata(ownerId: string, id: string, body: { baseVersion: number; title: string; destinations: string[]; status: 'planning' | 'completed' | 'archived'; clientMutationId: string }) {
       if (!body.title.trim() || body.destinations.some(x => !x.trim())) throw new DomainError('VALIDATION_ERROR', '旅程名称或目的地不能为空。');
       return db.transaction(async tx => {
+        await tx.select({ id: s.users.id }).from(s.users).where(eq(s.users.id, ownerId)).for('update');
         const [journey] = await tx.select().from(s.journeys).where(and(eq(s.journeys.id, id), eq(s.journeys.ownerId, ownerId))).for('update');
         if (!journey) throw new DomainError('NOT_FOUND', '未找到这次旅程。', 404);
         const scope = `journeys:${id}`; const cached = await replay(tx, ownerId, scope, body.clientMutationId, body); if (cached.found) return cached.response;
