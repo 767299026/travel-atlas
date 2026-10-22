@@ -10,9 +10,9 @@ import { migrate, removeTestTables } from '../backend/src/db/migrate.js';
 import { buildApp } from '../backend/src/app.js';
 import { hashPassword } from '../backend/src/security.js';
 
-export async function browserFixture(options: { routing?: AppConfig['routing']; routingFetch?: typeof fetch; routingWorker?: boolean } = {}) {
+export async function browserFixture(options: { shareSecret?: string; routing?: AppConfig['routing']; routingFetch?: typeof fetch; routingWorker?: boolean } = {}) {
   const mediaRoot = await mkdtemp(join(tmpdir(), 'travel-browser-')), web = 'http://127.0.0.1:5189', admin = 'http://127.0.0.1:5191';
-  const cfg = { ...config, ...(options.routing ? { routing: options.routing } : {}), prefix: 'tjt_' + randomBytes(4).toString('hex') + '_', mediaRoot, cookieSecure: false, loginRateMax: 100, rateLimitMax: 600, origins: [...config.origins, web, admin] };
+  const cfg = { ...config, ...(options.shareSecret ? { shareSecret: options.shareSecret } : {}), ...(options.routing ? { routing: options.routing } : {}), prefix: 'tjt_' + randomBytes(4).toString('hex') + '_', mediaRoot, cookieSecure: false, loginRateMax: 100, rateLimitMax: 600, origins: [...config.origins, web, admin] };
   const database = openDatabase(cfg), username = 'browser-owner', password = randomBytes(24).toString('base64url'); let app: Awaited<ReturnType<typeof buildApp>> | undefined, browser: any;
   const children: ReturnType<typeof spawn>[] = [];
   const cleanup = async () => {

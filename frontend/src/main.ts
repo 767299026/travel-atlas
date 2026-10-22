@@ -16,10 +16,12 @@ const router = createRouter({ history: createWebHistory(), routes: [
   { path: '/journeys/:id/actual', component: JourneyEditor },
   { path: '/journeys/:id/map', component: () => import('./views/RouteMap.vue') },
   { path: '/journeys/:id/actual/map', component: () => import('./views/RouteMap.vue') },
+  { path: '/journeys/:id/share', component: () => import('./views/JourneyShare.vue') },
+  { path: '/s/:id', component: () => import('./views/ShareRead.vue'), meta: { public: true } },
   { path: '/memories', component: Memories },
   { path: '/diaries/new', component: () => import('./views/DiaryEditor.vue') },
   { path: '/diaries/:id', component: () => import('./views/DiaryRead.vue') },
   { path: '/diaries/:id/edit', component: () => import('./views/DiaryEditor.vue') },
   { path: '/me', component: Profile }, { path: '/:pathMatch(.*)*', redirect: '/journeys' },
 ] });
-createApp(App).use(router).mount('#app');
+const app = createApp(App); app.use(router); await router.isReady(); app.mount('#app');

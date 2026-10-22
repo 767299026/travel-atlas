@@ -33,7 +33,9 @@
     "routing:setup": "python3 scripts/brouter-setup.py",
     "routing:serve": "node scripts/brouter-serve.mjs",
     "routing:cleanup": "tsx backend/src/cli/routing-cleanup.ts",
-    "test:browser:m32": "tsx scripts/browser-m32-check.ts"
+    "test:browser:m32": "tsx scripts/browser-m32-check.ts",
+    "share:cleanup": "tsx backend/src/cli/share-cleanup.ts",
+    "test:browser:m41": "tsx scripts/browser-m41-check.ts"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

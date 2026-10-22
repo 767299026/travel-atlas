@@ -13,6 +13,7 @@ import { DomainError, type CommandRequest, type JourneyCreate, type SessionData 
 import { registerRecordRoutes } from './record-routes.js';
 import { registerAdminRoutes } from './admin.js';
 import { registerMapRoutes } from './map-routes.js';
+import { registerShareRoutes } from './share-routes.js';
 import { registerRoutingRoutes } from './routing-routes.js';
 
 interface Auth extends SessionData { tokenHash: string }
@@ -79,5 +80,6 @@ export async function buildApp(config: AppConfig, database: Database, dependenci
   registerAdminRoutes(app, database, { authenticate, respond: response });
   registerMapRoutes(app, database, config, { authenticate, respond: response }, dependencies.mapFetch);
   registerRoutingRoutes(app, database, config, { authenticate, respond: response }, dependencies);
+  registerShareRoutes(app, database, config, { authenticate, respond: response });
   return app;
 }

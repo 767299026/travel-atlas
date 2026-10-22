@@ -29,6 +29,13 @@
       "when": 1792661502911,
       "tag": "0003_perfect_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1792667711145,
+      "tag": "0004_light_firestar",
+      "breakpoints": true
     }
   ]
 }

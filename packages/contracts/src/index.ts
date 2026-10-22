@@ -150,3 +150,4 @@ export function applyCommands(input: RouteSnapshot, operations: RouteCommand[], 
   }
   return { route, idMap, invalidatedSegmentIds: [...invalidated] };
 }
+export * from './shares.js';

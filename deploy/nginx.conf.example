@@ -28,6 +28,13 @@ server {
     location = /index.html {
         add_header Cache-Control "no-cache";
     }
+    # Anonymous share shell. The credential stays in the browser URL fragment.
+    location ^~ /s/ {
+        try_files /index.html =404;
+        add_header Cache-Control "no-store" always;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header X-Robots-Tag "noindex, nofollow, nosnippet" always;
+    }
     location / {
         try_files $uri $uri/ /index.html;
         add_header X-Content-Type-Options nosniff;

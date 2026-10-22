@@ -18,6 +18,7 @@ export interface AppConfig {
   host: string; port: number; origins: string[]; cookieSecure: boolean; prefix: string; loginRateMax: number;
   mediaRoot: string; mediaQuotaBytes: number; uploadMaxBytes: number;
   rateLimitMax?: number;
+  shareSecret?: string;
   amap?: { jsKey: string; securityCode: string };
   routing?: { endpoint: string; engineVersion: string; profileSha256: string; dataVersion: string; tiles: string[] };
 }
@@ -39,5 +40,8 @@ export const config: AppConfig = {
   mediaRoot: resolve(projectRoot, env.MEDIA_ROOT || 'data/media'), mediaQuotaBytes: positive('MEDIA_QUOTA_BYTES', 1073741824), uploadMaxBytes: positive('UPLOAD_MAX_BYTES', 20971520, 52428800),
   amap: env.AMAP_JS_KEY && env.AMAP_JS_SECURITY_CODE ? { jsKey: env.AMAP_JS_KEY, securityCode: env.AMAP_JS_SECURITY_CODE } : undefined,
   routing: routingConfig(),
+  shareSecret: env.SHARE_LINK_SECRET || undefined,
 };
 export const initialUser = { username: env.ADMIN_USERNAME ?? 'owner', password: env.ADMIN_PASSWORD };
+
+if (config.shareSecret && !/^[a-f0-9]{64}$/.test(config.shareSecret)) throw new Error('SHARE_LINK_SECRET must be 32 random bytes in lowercase hex');
