@@ -12,10 +12,11 @@ import { commandsSchema, createSchema, loginSchema, metadataSchema } from './sch
 import { DomainError, type CommandRequest, type JourneyCreate, type SessionData } from '../../packages/contracts/src/index.js';
 import { registerRecordRoutes } from './record-routes.js';
 import { registerAdminRoutes } from './admin.js';
+import { registerMapRoutes } from './map-routes.js';
 
 interface Auth extends SessionData { tokenHash: string }
 declare module 'fastify' { interface FastifyRequest { auth: Auth | null } }
-export async function buildApp(config: AppConfig, database: Database) {
+export async function buildApp(config: AppConfig, database: Database, dependencies: { mapFetch?: typeof fetch } = {}) {
   const app = Fastify({ logger: false, bodyLimit: 131072, ajv: { customOptions: { removeAdditional: false, coerceTypes: false } } });
   const { db, schema: s } = database; const store = repository(database); const cookieName = 'atlas_session'; let hashing = 0;
   await app.register(cookie); await app.register(rateLimit, { max: config.rateLimitMax ?? 180, timeWindow: '1 minute' });
@@ -75,5 +76,6 @@ export async function buildApp(config: AppConfig, database: Database) {
   app.post<{ Params: { id: string }; Body: CommandRequest }>('/api/v1/routes/:id/commands', { preHandler: authenticate, schema: { body: commandsSchema } }, async request => response(request, await store.commands(request.auth!.user.id, request.params.id, request.body)));
   registerRecordRoutes(app, database, config, { authenticate, respond: response });
   registerAdminRoutes(app, database, { authenticate, respond: response });
+  registerMapRoutes(app, database, config, { authenticate, respond: response }, dependencies.mapFetch);
   return app;
 }

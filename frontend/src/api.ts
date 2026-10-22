@@ -18,8 +18,14 @@ export async function api<T>(path: string, method = 'GET', body?: unknown): Prom
   return payload.data as T;
 }
 export const errorText = (error: unknown) => error instanceof Error ? error.message : '操作失败，请重试。';
-export const mutationId = () => crypto.randomUUID();
-export const draftId = () => 'draft:' + crypto.randomUUID();
+export const mutationId = () => {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  // getRandomValues is also available on the current HTTP preview origin.
+  const bytes = crypto.getRandomValues(new Uint8Array(16)); bytes[6] = (bytes[6]! & 15) | 64; bytes[8] = (bytes[8]! & 63) | 128;
+  const hex = [...bytes].map(value => value.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+};
+export const draftId = () => 'draft:' + mutationId();
 export async function uploadPhoto(file: File, key: string) {
   const body = new FormData(); body.set('file', file); let response: Response;
   try { response = await fetch('/api/v1/media', { method: 'POST', credentials: 'same-origin', body, headers: { 'X-CSRF-Token': session.value?.csrfToken ?? '', 'X-Upload-Id': key } }); }

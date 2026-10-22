@@ -6,7 +6,7 @@ const nullable = <X extends ReturnType<typeof T.String> | ReturnType<typeof T.Ob
 const id = text(80, 1);
 const date = nullable(T.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }));
 const mode = T.Union(['unknown', 'walk', 'hike', 'drive', 'transit', 'rail', 'flight', 'bike', 'boat', 'other'].map(x => T.Literal(x)));
-const location = nullable(object({ longitude: T.Number({ minimum: -180, maximum: 180 }), latitude: T.Number({ minimum: -90, maximum: 90 }), crs: T.Union(['WGS84', 'GCJ02', 'BD09'].map(x => T.Literal(x))) }));
+const location = nullable(object({ longitude: T.Number({ minimum: -180, maximum: 180 }), latitude: T.Number({ minimum: -90, maximum: 90 }), crs: T.Union(['WGS84', 'GCJ02', 'BD09'].map(x => T.Literal(x))), source: T.Optional(T.Union(['manual_coordinate', 'amap_pick', 'gpx_endpoint'].map(x => T.Literal(x)))) }));
 const stopFields = {
   label: text(160, 1), region: text(120), time: nullable(T.String({ pattern: '^([01]\\d|2[0-3]):[0-5]\\d$' })),
   note: text(10000), role: T.Union(['departure', 'visit', 'waypoint', 'transfer', 'overnight'].map(x => T.Literal(x))), location,
@@ -21,6 +21,9 @@ const command = T.Union([
   object({ type: T.Literal('move_stop'), stopId: id, toDayId: id, index: T.Integer({ minimum: 0, maximum: 200 }) }),
   object({ type: T.Literal('remove_stop'), stopId: id }),
   object({ type: T.Literal('set_arrival'), stopId: id, mode }),
+  object({ type: T.Literal('review_segment'), segmentId: id, geometryRef: id }),
+  object({ type: T.Literal('clear_segment_geometry'), segmentId: id, geometryRef: id }),
+  object({ type: T.Literal('set_segment_lock'), segmentId: id, locked: T.Boolean() }),
   object({ type: T.Literal('set_route_note'), note: text(10000) }),
 ]);
 export const loginSchema = object({ username: text(64, 1), password: text(128, 1) });

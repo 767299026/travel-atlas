@@ -19,6 +19,8 @@
     "test": "npm run test --workspace @travel-atlas/backend",
     "test:browser": "tsx scripts/browser-check.ts",
     "test:browser:m2": "tsx scripts/browser-m2-check.ts",
+    "test:browser:m3": "tsx scripts/browser-m3-check.ts",
+    "test:browser:amap": "tsx scripts/browser-amap-check.ts",
     "db:generate": "drizzle-kit generate --config backend/drizzle.config.ts",
     "db:migrate": "tsx backend/src/cli/migrate.ts",
     "db:backup": "tsx backend/src/cli/backup.ts",

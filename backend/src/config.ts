@@ -17,6 +17,7 @@ export interface AppConfig {
   host: string; port: number; origins: string[]; cookieSecure: boolean; prefix: string; loginRateMax: number;
   mediaRoot: string; mediaQuotaBytes: number; uploadMaxBytes: number;
   rateLimitMax?: number;
+  amap?: { jsKey: string; securityCode: string };
 }
 export const config: AppConfig = {
   mysql: { host: required('MYSQL_HOST'), port: Number(required('MYSQL_PORT')), database: required('MYSQL_DATABASE'), user: required('MYSQL_USER'), password: required('MYSQL_PASSWORD') },
@@ -25,5 +26,6 @@ export const config: AppConfig = {
   cookieSecure: env.COOKIE_SECURE === 'true' || (env.NODE_ENV === 'production' && env.COOKIE_SECURE !== 'false'),
   prefix: '', loginRateMax: 10,
   mediaRoot: resolve(projectRoot, env.MEDIA_ROOT || 'data/media'), mediaQuotaBytes: positive('MEDIA_QUOTA_BYTES', 1073741824), uploadMaxBytes: positive('UPLOAD_MAX_BYTES', 20971520, 52428800),
+  amap: env.AMAP_JS_KEY && env.AMAP_JS_SECURITY_CODE ? { jsKey: env.AMAP_JS_KEY, securityCode: env.AMAP_JS_SECURITY_CODE } : undefined,
 };
 export const initialUser = { username: env.ADMIN_USERNAME ?? 'owner', password: env.ADMIN_PASSWORD };

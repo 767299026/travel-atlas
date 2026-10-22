@@ -12,6 +12,9 @@ export function repository(database: Database) {
     const days = await executor.select().from(s.days).where(eq(s.days.routeId, id)).orderBy(asc(s.days.sortOrder));
     const stops = await executor.select().from(s.stops).where(eq(s.stops.routeId, id)).orderBy(asc(s.stops.sortOrder));
     const segments = await executor.select().from(s.segments).where(eq(s.segments.routeId, id));
+    // SQL row order is unspecified; map selection and GPX export follow the actual stop order.
+    const order = new Map(days.flatMap(d => stops.filter(p => p.dayId === d.id).map(p => p.id)).map((id, index) => [id, index]));
+    segments.sort((a, b) => (order.get(a.fromStopId) ?? 0) - (order.get(b.fromStopId) ?? 0));
     return { id, journeyId: route.journeyId, layer: route.layer, version: route.version, note: route.note, copiedFrom: route.copiedFrom,
       days: days.map(d => ({ id: d.id, title: d.title, area: d.area, date: d.date, stayName: d.stayName, copiedFrom: d.copiedFrom, stops: stops.filter(p => p.dayId === d.id).map(p => ({ id: p.id, label: p.label, region: p.region, time: p.time, note: p.note, role: p.role, location: p.location, copiedFrom: p.copiedFrom })) })),
       segments: segments.map(({ routeId: _, ...segment }) => segment) };

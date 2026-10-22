@@ -15,6 +15,13 @@
       "when": 1792645067996,
       "tag": "0001_overconfident_bromley",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1792650341033,
+      "tag": "0002_quiet_photon",
+      "breakpoints": true
     }
   ]
 }

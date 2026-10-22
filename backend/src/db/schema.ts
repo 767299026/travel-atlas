@@ -1,5 +1,5 @@
-import { mysqlTableCreator, varchar, text, int, boolean, datetime, json, mysqlEnum, uniqueIndex, index, foreignKey } from 'drizzle-orm/mysql-core';
-import type { Location, RouteSnapshot, TravelMode, CopySource, DiaryAssociation } from '../../../packages/contracts/src/index.js';
+import { mysqlTableCreator, varchar, text, mediumtext, double, int, boolean, datetime, json, mysqlEnum, uniqueIndex, index, foreignKey } from 'drizzle-orm/mysql-core';
+import type { Location, RouteSnapshot, TravelMode, CopySource, DiaryAssociation, RouteGeometry, PointSample } from '../../../packages/contracts/src/index.js';
 
 export function buildSchema(prefix = '') {
   const table = mysqlTableCreator(name => prefix + name);
@@ -71,6 +71,14 @@ export function buildSchema(prefix = '') {
   const auditEvents = table('audit_events', {
     id: id(), actorId: varchar('actor_id', { length: 36 }).notNull().references(() => users.id), action: varchar('action', { length: 40 }).notNull(), targetId: varchar('target_id', { length: 36 }).notNull(), createdAt: created(),
   }, t => [index(prefix + 'audit_created_idx').on(t.createdAt)]);
-  return { users, sessions, journeys, routes, days, stops, segments, revisions, mutations, visits, diaries, media, diaryPhotos, auditEvents };
+  const geometries = table('geometry_assets', {
+    id: id(), ownerId: varchar('owner_id', { length: 36 }).notNull().references(() => users.id), routeId: varchar('route_id', { length: 36 }).notNull().references(() => routes.id),
+    sourceKind: mysqlEnum('source_kind', ['manual', 'imported_reference']).notNull(), sourceNote: text('source_note').notNull(),
+    geometry: json('geometry').$type<RouteGeometry>().notNull(), samples: json('samples').$type<PointSample[][] | null>(),
+    pointCount: int('point_count').notNull(), lengthM: double('length_m').notNull(), exportPolicy: mysqlEnum('export_policy', ['allowed', 'unverified']).notNull(),
+    filename: varchar('filename', { length: 200 }), originalXml: mediumtext('original_xml'), checksum: varchar('checksum', { length: 64 }).notNull(),
+    diagnostics: json('diagnostics').$type<string[]>().notNull(), createdAt: created(),
+  }, t => [index(prefix + 'geometry_owner_route_idx').on(t.ownerId, t.routeId)]);
+  return { users, sessions, journeys, routes, days, stops, segments, revisions, mutations, visits, diaries, media, diaryPhotos, auditEvents, geometries };
 }
-export const { users, sessions, journeys, routes, days, stops, segments, revisions, mutations, visits, diaries, media, diaryPhotos, auditEvents } = buildSchema();
+export const { users, sessions, journeys, routes, days, stops, segments, revisions, mutations, visits, diaries, media, diaryPhotos, auditEvents, geometries } = buildSchema();

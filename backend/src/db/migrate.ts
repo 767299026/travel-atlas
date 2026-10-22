@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import type { Pool, RowDataPacket } from 'mysql2/promise';
 import { projectRoot } from '../config.js';
 
-const names = ['users', 'sessions', 'journeys', 'journey_routes', 'route_days', 'route_stops', 'route_segments', 'route_revisions', 'idempotency_records', 'visits', 'diaries', 'media', 'diary_photos', 'audit_events'];
+const names = ['users', 'sessions', 'journeys', 'journey_routes', 'route_days', 'route_stops', 'route_segments', 'route_revisions', 'idempotency_records', 'visits', 'diaries', 'media', 'diary_photos', 'audit_events', 'geometry_assets'];
 export function validatePrefix(prefix: string) {
   if (prefix !== '' && !/^tjt_[a-f0-9]{8}_$/.test(prefix)) throw new Error('Invalid test table prefix');
 }
@@ -41,5 +41,5 @@ export async function migrate(pool: Pool, prefix = '') {
 }
 export async function removeTestTables(pool: Pool, prefix: string) {
   validatePrefix(prefix); if (!prefix) throw new Error('Refuse to remove application tables');
-  for (const name of ['diary_photos', 'media', 'diaries', 'visits', 'audit_events', 'idempotency_records', 'route_revisions', 'route_segments', 'route_stops', 'route_days', 'journey_routes', 'journeys', 'sessions', 'users', 'schema_migrations']) await pool.query('DROP TABLE IF EXISTS `' + prefix + name + '`');
+  for (const name of ['geometry_assets', 'diary_photos', 'media', 'diaries', 'visits', 'audit_events', 'idempotency_records', 'route_revisions', 'route_segments', 'route_stops', 'route_days', 'journey_routes', 'journeys', 'sessions', 'users', 'schema_migrations']) await pool.query('DROP TABLE IF EXISTS `' + prefix + name + '`');
 }

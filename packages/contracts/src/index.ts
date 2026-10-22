@@ -4,7 +4,7 @@ export const modeLabels: Record<TravelMode, string> = {
   unknown: '接驳待定', walk: '步行', hike: '徒步', drive: '自驾', transit: '公共交通',
   rail: '铁路', flight: '飞机', bike: '骑行', boat: '船舶', other: '其他',
 };
-export interface Location { longitude: number; latitude: number; crs: 'WGS84' | 'GCJ02' | 'BD09' }
+export interface Location { longitude: number; latitude: number; crs: 'WGS84' | 'GCJ02' | 'BD09'; source?: 'manual_coordinate' | 'amap_pick' | 'gpx_endpoint' }
 export interface StopInput { label: string; region: string; time: string | null; note: string; role: 'departure' | 'visit' | 'waypoint' | 'transfer' | 'overnight'; location: Location | null }
 export interface CopySource { routeId: string; version: number; id?: string }
 export interface RouteStop extends StopInput { id: string; copiedFrom?: CopySource | null }
@@ -30,11 +30,15 @@ export type RouteCommand =
   | { type: 'move_stop'; stopId: string; toDayId: string; index: number }
   | { type: 'remove_stop'; stopId: string }
   | { type: 'set_arrival'; stopId: string; mode: TravelMode }
+  | { type: 'review_segment'; segmentId: string; geometryRef: string }
+  | { type: 'clear_segment_geometry'; segmentId: string; geometryRef: string }
+  | { type: 'set_segment_lock'; segmentId: string; locked: boolean }
   | { type: 'set_route_note'; note: string };
 export interface CommandRequest { baseVersion: number; clientMutationId: string; operations: RouteCommand[] }
 export interface CommandResult { route: RouteSnapshot; idMap: Record<string, string>; invalidatedSegmentIds: string[] }
 export interface JourneyList { items: JourneySummary[]; nextCursor: string | null }
 export * from './records.js';
+export * from './maps.js';
 
 export class DomainError extends Error {
   constructor(public code: string, message: string, public statusCode = 422) { super(message); }
@@ -118,6 +122,22 @@ export function applyCommands(input: RouteSnapshot, operations: RouteCommand[], 
       }
       case 'remove_stop': { const p = point(op.stopId); p.day.stops = p.day.stops.filter(s => s.id !== p.stop.id); break; }
       case 'set_arrival': arrival(op.stopId, op.mode); break;
+      case 'review_segment': case 'clear_segment_geometry': case 'set_segment_lock': {
+        const segment = route.segments.find(s => s.id === op.segmentId);
+        if (!segment) throw new DomainError('NOT_FOUND', '路段不属于当前路线。');
+        if (op.type === 'set_segment_lock') segment.geometryLocked = op.locked;
+        else {
+          if (segment.geometryRef !== op.geometryRef) throw new DomainError('VERSION_CONFLICT', '路径引用已变动，请重新核对。', 409);
+          if (op.type === 'review_segment') {
+            if (segment.geometryStatus !== 'ready' || segment.kind !== 'travel') throw new DomainError('GEOMETRY_STALE', '请先保存与当前地点和交通安排一致的路径。');
+            segment.reviewStatus = 'confirmed';
+          } else {
+            if (segment.geometryLocked) throw new DomainError('GEOMETRY_LOCKED', '请先解除路径保护，再移除绑定。', 409);
+            segment.geometryRef = null; segment.geometryStatus = 'missing'; segment.reviewStatus = 'unreviewed';
+          }
+        }
+        break;
+      }
       case 'set_route_note': route.note = op.note; break;
     }
     reconcile();

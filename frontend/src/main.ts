@@ -14,6 +14,8 @@ const router = createRouter({ history: createWebHistory(), routes: [
   { path: '/', redirect: '/journeys' }, { path: '/journeys', component: JourneyList },
   { path: '/journeys/new', component: JourneyCreate }, { path: '/journeys/:id', component: JourneyEditor },
   { path: '/journeys/:id/actual', component: JourneyEditor },
+  { path: '/journeys/:id/map', component: () => import('./views/RouteMap.vue') },
+  { path: '/journeys/:id/actual/map', component: () => import('./views/RouteMap.vue') },
   { path: '/memories', component: Memories },
   { path: '/diaries/new', component: () => import('./views/DiaryEditor.vue') },
   { path: '/diaries/:id', component: () => import('./views/DiaryRead.vue') },
