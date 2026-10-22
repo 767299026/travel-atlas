@@ -1,0 +1,21 @@
+{
+  "projectId": "29b3ea48-0738-4712-963e-ec914fab4f77",
+  "date": "2026-10-21",
+  "files": [
+    {
+      "original": "styles.css",
+      "copy": "frontend/src/styles/prototype-base.css",
+      "sha256": "17f7b35637b7f16ef572aacda2257423fd955845e5967bd11cf169c3b67b4e81"
+    },
+    {
+      "original": "journeys.css",
+      "copy": "frontend/src/styles/prototype-journeys.css",
+      "sha256": "ccf6301fe61620679e150a29f449d762586039a0a899a0150199aa236ba29b74"
+    }
+  ],
+  "additional": [
+    "index.html @layer od-layout layout primitives",
+    "app.js and journeys.js SVG path dictionaries"
+  ],
+  "original_files_modified": false
+}

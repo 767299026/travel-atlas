@@ -1,0 +1,128 @@
+{
+  "kind": "provider_planned_reference",
+  "crs": "WGS84",
+  "verified_for_travel": false,
+  "request": {
+    "endpoint": "https://brouter.de/brouter",
+    "params": {
+      "lonlats": "118.1875481,30.1222091|118.1676191,30.1395092",
+      "profile": "hiking-mountain",
+      "alternativeidx": "0",
+      "format": "geojson"
+    },
+    "profile_url": "https://brouter.de/brouter/profiles2/hiking-mountain.brf",
+    "profile_sha256": "361ed3d178f2cc260b0533048066202ed9510c71653929db8648a284ae38214f",
+    "profile_retrieved_bytes": 26914,
+    "observed_profile_fields": {
+      "validForFoot": "assign   validForFoot        1",
+      "consider_elevation": "assign   consider_elevation     = false",
+      "SAC_scale_limit": "assign   SAC_scale_limit          3",
+      "SAC_access_penalty": "assign   SAC_access_penalty      999",
+      "allow_steps": "assign   allow_steps              true",
+      "allow_ferries": "assign   allow_ferries            true",
+      "add_beeline": "assign add_beeline                false",
+      "cost_of_unknown": "assign   cost_of_unknown          2",
+      "badoneway": "assign badoneway = 0",
+      "onewaypenalty": "assign onewaypenalty = 0"
+    },
+    "request_ms": 2169,
+    "http": 200,
+    "response_bytes": 9010,
+    "sample_date": "2026-10-21",
+    "engine": "BRouter-1.7.11-beta",
+    "data_snapshot_version": "not returned by service"
+  },
+  "comparison": {
+    "profile_sha256": "361ed3d178f2cc260b0533048066202ed9510c71653929db8648a284ae38214f",
+    "poi_endpoint_offsets_m": [
+      5.4,
+      4.9
+    ],
+    "computed_horizontal_length_m": 3127.0,
+    "max_vertex_to_other_polyline_m": {
+      "brouter_to_local": 0.2,
+      "local_to_brouter": 8.0
+    },
+    "elevation_minmax_m": [
+      909.25,
+      1689.5
+    ],
+    "returned_property_keys": [
+      "creator",
+      "name",
+      "track-length",
+      "filtered ascend",
+      "plain-ascend",
+      "total-time",
+      "total-energy",
+      "cost",
+      "messages",
+      "times"
+    ],
+    "message_sample": [
+      [
+        "Longitude",
+        "Latitude",
+        "Elevation",
+        "Distance",
+        "CostPerKm",
+        "ElevCost",
+        "TurnCost",
+        "NodeCost",
+        "InitialCost",
+        "WayTags",
+        "NodeTags",
+        "Time",
+        "Energy"
+      ],
+      [
+        "118167834",
+        "30139409",
+        "1687",
+        "3079",
+        "2900",
+        "0",
+        "0",
+        "0",
+        "0",
+        "highway=steps surface=paved foot=yes bicycle=no route_hiking_rwn=yes",
+        "",
+        "5665",
+        "699749"
+      ],
+      [
+        "118167570",
+        "30139496",
+        "1688",
+        "44",
+        "3000",
+        "0",
+        "0",
+        "0",
+        "0",
+        "reversedirection=yes highway=steps route_hiking_rwn=yes",
+        "",
+        "5714",
+        "704910"
+      ]
+    ]
+  },
+  "returned_properties": {
+    "creator": "BRouter-1.7.11-beta",
+    "name": "brouter_hiking-mountain_0",
+    "track-length": "3123",
+    "filtered ascend": "785",
+    "plain-ascend": "779",
+    "total-time": "5714",
+    "total-energy": "704910",
+    "cost": "9127"
+  },
+  "model_values_are_not_measurements": true,
+  "limitations": [
+    "Single public online service request; no production availability guarantee",
+    "No proof of current opening or complete access/direction restrictions",
+    "No ground-truth evaluation of elevation or time",
+    "Local graph geometry and BRouter may use different OSM snapshots",
+    "Vertex-to-polyline distances are approximate local-plane diagnostics, not a route safety or accuracy score"
+  ]
+}
