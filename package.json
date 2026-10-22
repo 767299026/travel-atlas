@@ -29,7 +29,11 @@
     "preview": "node scripts/preview.mjs frontend",
     "dev:admin": "npm run dev --workspace @travel-atlas/admin",
     "preview:admin": "node scripts/preview.mjs admin",
-    "media:cleanup": "tsx backend/src/cli/media-cleanup.ts"
+    "media:cleanup": "tsx backend/src/cli/media-cleanup.ts",
+    "routing:setup": "python3 scripts/brouter-setup.py",
+    "routing:serve": "node scripts/brouter-serve.mjs",
+    "routing:cleanup": "tsx backend/src/cli/routing-cleanup.ts",
+    "test:browser:m32": "tsx scripts/browser-m32-check.ts"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

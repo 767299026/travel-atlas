@@ -13,10 +13,11 @@ import { DomainError, type CommandRequest, type JourneyCreate, type SessionData 
 import { registerRecordRoutes } from './record-routes.js';
 import { registerAdminRoutes } from './admin.js';
 import { registerMapRoutes } from './map-routes.js';
+import { registerRoutingRoutes } from './routing-routes.js';
 
 interface Auth extends SessionData { tokenHash: string }
 declare module 'fastify' { interface FastifyRequest { auth: Auth | null } }
-export async function buildApp(config: AppConfig, database: Database, dependencies: { mapFetch?: typeof fetch } = {}) {
+export async function buildApp(config: AppConfig, database: Database, dependencies: { mapFetch?: typeof fetch; routingFetch?: typeof fetch; routingWorker?: boolean } = {}) {
   const app = Fastify({ logger: false, bodyLimit: 131072, ajv: { customOptions: { removeAdditional: false, coerceTypes: false } } });
   const { db, schema: s } = database; const store = repository(database); const cookieName = 'atlas_session'; let hashing = 0;
   await app.register(cookie); await app.register(rateLimit, { max: config.rateLimitMax ?? 180, timeWindow: '1 minute' });
@@ -77,5 +78,6 @@ export async function buildApp(config: AppConfig, database: Database, dependenci
   registerRecordRoutes(app, database, config, { authenticate, respond: response });
   registerAdminRoutes(app, database, { authenticate, respond: response });
   registerMapRoutes(app, database, config, { authenticate, respond: response }, dependencies.mapFetch);
+  registerRoutingRoutes(app, database, config, { authenticate, respond: response }, dependencies);
   return app;
 }

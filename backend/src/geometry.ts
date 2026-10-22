@@ -4,11 +4,12 @@ import type { Database, DbExecutor } from './db/client.js';
 import { repository } from './repository.js';
 import { parseGpx, writeGpx } from './gpx.js';
 import { DomainError, geometryLimits, validateGeometry, geometryLength, endpointDiagnostics, type GeometryAsset, type GeometrySaveInput, type GeometrySummary, type ExportReport, type RouteSnapshot } from '../../packages/contracts/src/index.js';
+export function geometryDto(row: Database['schema']['geometries']['$inferSelect']): GeometryAsset {
+  const { ownerId: _, originalXml: __, checksum: ___, createdAt, ...asset } = row; return { ...asset, createdAt: createdAt.toISOString() };
+}
 export function geometryRepository(database: Database) {
   const { db, schema: s } = database, storage = repository(database).storage;
-  const dto = (row: typeof s.geometries.$inferSelect): GeometryAsset => {
-    const { ownerId: _, originalXml: __, checksum: ___, createdAt, ...asset } = row; return { ...asset, createdAt: createdAt.toISOString() };
-  };
+  const dto = geometryDto;
   async function read(ex: DbExecutor, ownerId: string, id: string) {
     const [row] = await ex.select().from(s.geometries).where(and(eq(s.geometries.id, id), eq(s.geometries.ownerId, ownerId)));
     if (!row) throw new DomainError('NOT_FOUND', '路径资产不存在。', 404); return row;
@@ -64,7 +65,7 @@ export function geometryRepository(database: Database) {
         if (Number(usage?.points) + pointCount > geometryLimits.ownerPoints || Number(usage?.count) >= geometryLimits.ownerAssets || Number(usage?.bytes) + (body.kind === 'gpx' ? Buffer.byteLength(body.xml) : 0) > geometryLimits.ownerSourceBytes) throw new DomainError('GEOMETRY_QUOTA', '路径历史达到当前个人限额，请先联系管理员整理旧资产；本次没有保存。', 413);
         const stops = route.days.flatMap(d => d.stops), from = stops.find(p => p.id === segment.fromStopId)!, to = stops.find(p => p.id === segment.toStopId)!;
         const diagnostics = endpointDiagnostics(geometry, from.location, to.location), now = new Date();
-        const row = { id: randomUUID(), ownerId, routeId, sourceKind: body.kind === 'gpx' ? 'imported_reference' as const : 'manual' as const, sourceNote: body.sourceNote.trim(), geometry, samples: parsed?.samples ?? null, pointCount, lengthM, exportPolicy, filename: body.kind === 'gpx' ? body.filename.replace(/[\x00-\x1f\x7f/\\]/g, '_').slice(0, 200) : null, originalXml: body.kind === 'gpx' ? body.xml : null, checksum: createHash('sha256').update(body.kind === 'gpx' ? body.xml : JSON.stringify(geometry)).digest('hex'), diagnostics, createdAt: now };
+        const row = { id: randomUUID(), ownerId, routeId, sourceKind: body.kind === 'gpx' ? 'imported_reference' as const : 'manual' as const, sourceNote: body.sourceNote.trim(), geometry, samples: parsed?.samples ?? null, pointCount, lengthM, exportPolicy, filename: body.kind === 'gpx' ? body.filename.replace(/[\x00-\x1f\x7f/\\]/g, '_').slice(0, 200) : null, originalXml: body.kind === 'gpx' ? body.xml : null, checksum: createHash('sha256').update(body.kind === 'gpx' ? body.xml : JSON.stringify(geometry)).digest('hex'), diagnostics, routingInfo: null, createdAt: now };
         await ex.insert(s.geometries).values(row);
         segment.geometryRef = row.id; segment.geometryStatus = 'ready'; segment.reviewStatus = diagnostics.length ? 'needs_attention' : 'unreviewed'; route.version++;
         await storage.persist(ex, route); await ex.update(s.routes).set({ version: route.version, updatedAt: now }).where(eq(s.routes.id, routeId)); await ex.update(s.journeys).set({ updatedAt: now }).where(eq(s.journeys.id, route.journeyId)); await storage.revision(ex, ownerId, route);

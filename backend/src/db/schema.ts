@@ -1,5 +1,5 @@
 import { mysqlTableCreator, varchar, text, mediumtext, double, int, boolean, datetime, json, mysqlEnum, uniqueIndex, index, foreignKey } from 'drizzle-orm/mysql-core';
-import type { Location, RouteSnapshot, TravelMode, CopySource, DiaryAssociation, RouteGeometry, PointSample } from '../../../packages/contracts/src/index.js';
+import type { Location, RouteSnapshot, TravelMode, CopySource, DiaryAssociation, RouteGeometry, PointSample, RoutingInput, RoutingInfo } from '../../../packages/contracts/src/index.js';
 
 export function buildSchema(prefix = '') {
   const table = mysqlTableCreator(name => prefix + name);
@@ -73,12 +73,24 @@ export function buildSchema(prefix = '') {
   }, t => [index(prefix + 'audit_created_idx').on(t.createdAt)]);
   const geometries = table('geometry_assets', {
     id: id(), ownerId: varchar('owner_id', { length: 36 }).notNull().references(() => users.id), routeId: varchar('route_id', { length: 36 }).notNull().references(() => routes.id),
-    sourceKind: mysqlEnum('source_kind', ['manual', 'imported_reference']).notNull(), sourceNote: text('source_note').notNull(),
+    sourceKind: mysqlEnum('source_kind', ['manual', 'imported_reference', 'routing']).notNull(), sourceNote: text('source_note').notNull(),
     geometry: json('geometry').$type<RouteGeometry>().notNull(), samples: json('samples').$type<PointSample[][] | null>(),
     pointCount: int('point_count').notNull(), lengthM: double('length_m').notNull(), exportPolicy: mysqlEnum('export_policy', ['allowed', 'unverified']).notNull(),
     filename: varchar('filename', { length: 200 }), originalXml: mediumtext('original_xml'), checksum: varchar('checksum', { length: 64 }).notNull(),
-    diagnostics: json('diagnostics').$type<string[]>().notNull(), createdAt: created(),
+    diagnostics: json('diagnostics').$type<string[]>().notNull(), routingInfo: json('routing_info').$type<RoutingInfo | null>(), createdAt: created(),
   }, t => [index(prefix + 'geometry_owner_route_idx').on(t.ownerId, t.routeId)]);
-  return { users, sessions, journeys, routes, days, stops, segments, revisions, mutations, visits, diaries, media, diaryPhotos, auditEvents, geometries };
+  const routingJobs = table('routing_jobs', {
+    id: id(), ownerId: varchar('owner_id', { length: 36 }).notNull().references(() => users.id), routeId: varchar('route_id', { length: 36 }).notNull().references(() => routes.id), segmentId: varchar('segment_id', { length: 36 }).notNull(),
+    status: mysqlEnum('status', ['queued', 'running', 'succeeded', 'failed', 'cancelled', 'obsolete']).notNull(), input: json('input').$type<RoutingInput>().notNull(), fingerprint: varchar('fingerprint', { length: 64 }).notNull(),
+    candidateId: varchar('candidate_id', { length: 36 }), failureCode: varchar('failure_code', { length: 50 }), failureMessage: varchar('failure_message', { length: 300 }),
+    leaseToken: varchar('lease_token', { length: 36 }), leaseExpiresAt: datetime('lease_expires_at', { mode: 'date', fsp: 3 }),
+    createdAt: created(), startedAt: datetime('started_at', { mode: 'date', fsp: 3 }), finishedAt: datetime('finished_at', { mode: 'date', fsp: 3 }), expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+  }, t => [index(prefix + 'routing_job_status_idx').on(t.status, t.createdAt), index(prefix + 'routing_job_owner_idx').on(t.ownerId, t.createdAt)]);
+  const routingCandidates = table('routing_candidates', {
+    id: id(), jobId: varchar('job_id', { length: 36 }).notNull().references(() => routingJobs.id, { onDelete: 'cascade' }), ownerId: varchar('owner_id', { length: 36 }).notNull().references(() => users.id), routeId: varchar('route_id', { length: 36 }).notNull().references(() => routes.id), segmentId: varchar('segment_id', { length: 36 }).notNull(),
+    input: json('input').$type<RoutingInput>().notNull(), fingerprint: varchar('fingerprint', { length: 64 }).notNull(), geometry: json('geometry').$type<RouteGeometry>().notNull(), info: json('info').$type<RoutingInfo>().notNull(), lengthM: double('length_m').notNull(), diagnostics: json('diagnostics').$type<string[]>().notNull(),
+    adoptedAssetId: varchar('adopted_asset_id', { length: 36 }), createdAt: created(), expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+  }, t => [uniqueIndex(prefix + 'routing_candidate_job_uq').on(t.jobId), index(prefix + 'routing_candidate_owner_idx').on(t.ownerId, t.expiresAt)]);
+  return { users, sessions, journeys, routes, days, stops, segments, revisions, mutations, visits, diaries, media, diaryPhotos, auditEvents, geometries, routingJobs, routingCandidates };
 }
-export const { users, sessions, journeys, routes, days, stops, segments, revisions, mutations, visits, diaries, media, diaryPhotos, auditEvents, geometries } = buildSchema();
+export const { users, sessions, journeys, routes, days, stops, segments, revisions, mutations, visits, diaries, media, diaryPhotos, auditEvents, geometries, routingJobs, routingCandidates } = buildSchema();

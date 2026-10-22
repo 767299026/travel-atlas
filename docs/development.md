@@ -12,7 +12,7 @@ Vue 网站：本人登录、行程分页列表、新建多目的地和多日计�
 
 M2 已增加计划复制／空实际记录、实际路线独立编辑、手动到访、私密图文日记与独立管理端。正文使用纯文本，照片可排序、说明与删除；日记本机草稿和版本冲突不静默覆盖。详见 [M2 范围、限制与验收](m2-records.md)。
 
-M3.1 已接入独立地图页、高德按需加载与选点／官方显示转换、不可变手工几何、GPX 预览／原件／导出、核对／保护和过期。来源、坐标和限制见 [M3 专项记录](m3-maps.md)。尚无自动算路候选、独立户外图层、GeoJSON、分享、思源导入或 AI；照片仍待真实手机相册补验。
+M3.1 已接入独立地图页、高德按需加载与选点／官方显示转换、不可变手工几何、GPX 预览／原件／导出、核对／保护和过期。来源、坐标和限制见 [M3 专项记录](m3-maps.md)。M3.2 新增自动算路候选与独立户外模式，见 [算路专题](m3-routing.md)；尚无 GeoJSON、分享、思源导入或 AI；照片仍待真实手机相册补验。
 
 ## 技术与目录
 
@@ -20,7 +20,7 @@ M3.1 已接入独立地图页、高德按需加载与选点／官方显示转换
 - Fastify 5.12 + TypeBox JSON Schema；Drizzle 0.45 + mysql2 3.24。精确版本在 `package-lock.json`。
 - `frontend/`：原型复用样式与 Vue 页面；`admin/`：独立 Vue 管理端；`backend/src/`：API、身份、仓库、迁移及 CLI。
 - `packages/contracts/src/`：共享类型、日期／目的地规则与路线命令。
-- `backend/drizzle/`：SQL 与生成元数据；`0000` 建立 M1 的 9 张表，`0001` 为 M2 增加 5 张表及字段，`0002` 为 M3.1 增加 `geometry_assets`，合计 15 张业务表与账本。
+- `backend/drizzle/`：SQL 与生成元数据；`0000` 建立 M1 的 9 张表，`0001` 为 M2 增加 5 张表及字段，`0002` 为 M3.1 增加 `geometry_assets`，`0003` 为 M3.2 增加任务、候选与来源字段，合计 17 张业务表与账本。
 - 图片处理使用 Sharp 0.35.5、multipart 10.1.4；原图、阅读图和缩略图位于私有 `MEDIA_ROOT`，默认 `data/media`。配额和限制见 M2 文档及 `.env.example`。
 - GPX 使用后端 xmldom 0.9.12，原 XML 和不可变几何保存在 MySQL，计入数据库备份。地图页及外部 SDK 按需加载；浏览器只接收运行时 JS Key，安全密钥留在固定上游的鉴权代理。
 - `data/`：忽略提交的本机内容、验证、日志、备份与旧构建；`frontend/dist/`、`admin/dist/` 与根 `dist/` 为构建产物。
@@ -59,13 +59,14 @@ npm run dev
 
 ### screen 预览会话
 
-目前三个 detached 会话：`travel-atlas-web`（5178）、`travel-atlas-api`（3080）和 `travel-atlas-admin`（5179）；不依赖聊天或 SSH 前台会话。日志在被忽略的 `data/runtime/*.screen.log`。screen 不提供机器重启后的自动启动或应用崩溃自动恢复。
+目前四个 detached 会话：`travel-atlas-web`（5178）、`travel-atlas-api`（3080）、`travel-atlas-admin`（5179）和 `travel-atlas-router`（17777，仅回环）；不依赖聊天或 SSH 前台会话。日志在被忽略的 `data/runtime/*.screen.log`。screen 不提供机器重启后的自动启动或应用崩溃自动恢复。
 
 ```bash
 screen -ls
 screen -r travel-atlas-web
 screen -r travel-atlas-api
 screen -r travel-atlas-admin
+screen -r travel-atlas-router
 ```
 
 进入后按 **Ctrl+A，再按 D** 分离，保持进程运行；Ctrl+C 会停止应用。停止指定会话使用 `screen -S travel-atlas-web -X quit`／`screen -S travel-atlas-api -X quit`。不要关闭其他项目会话。
@@ -140,3 +141,14 @@ M3 的 `npm run test:browser:m3` 与真实服务 `npm run test:browser:amap` 复
 - [Fastify multipart 上传与限制](https://github.com/fastify/fastify-multipart)
 
 依赖于 2026-10-21 查询可用版本并锁定；实现兼容性由本轮类型检查、构建和集成验证确认。
+
+
+### M3.2 运行与验证
+
+本机 BRouter 固定 1.7.10、Java 17，已下载黄山／徽杭及长坪沟两个 5° 区域块，约 42.2MB 安装目录；额外使用 `travel-atlas-router` screen 和 17777 回环端口。运行、数据更新、profile、配额和清理命令见 [M3.2](m3-routing.md)。默认 `.env.example` 关闭路由，本机 `.env` 已启用，秘密仍只保存在服务器。
+
+`npm run test:browser:m32` 复用 M2／M3 隔离端口，需本机已安装并运行 router；它调用一次真实引擎，失败／取消场景用受控响应，瓦片用替身以避免重复请求公开服务；单瓦片真实浏览器另验。全部浏览器脚本顺序运行。新阶段后端累计 44 项、浏览器累计 42 组通过，类型检查与暂存构建通过。Leaflet JS 148.62kB（gzip 43.33kB）及 CSS 15.09kB 仅加载户外地图后请求。
+
+2026-10-22 09:57 UTC 先生成 20,578 字节、权限 600 的 SQL 备份，再应用 `0003_perfect_storm.sql`。当前 17 张业务表＋账本、1 个本人账号、0 个旅程／几何／任务／候选，无遗留测试表，未导入演示数据。构建暂存验证后切换 API／主站／管理端，旧版本保留 `data/releases/`，前端保留旧哈希资源。现有反代配置与 OpenDesign 保持只读。
+
+当前主站预览可使用户外地图和区域徒步候选；尚无全国／多交通方式路由、复杂高程、GeoJSON、分享、思源和 AI。后续按 M4 推进分享范围、HTTPS／正式部署和整体恢复。真机、手机网络、区域覆盖与通行、崩溃／开机恢复、定时清理及数据库＋媒体恢复仍需补验。

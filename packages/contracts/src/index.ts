@@ -4,7 +4,7 @@ export const modeLabels: Record<TravelMode, string> = {
   unknown: '接驳待定', walk: '步行', hike: '徒步', drive: '自驾', transit: '公共交通',
   rail: '铁路', flight: '飞机', bike: '骑行', boat: '船舶', other: '其他',
 };
-export interface Location { longitude: number; latitude: number; crs: 'WGS84' | 'GCJ02' | 'BD09'; source?: 'manual_coordinate' | 'amap_pick' | 'gpx_endpoint' }
+export interface Location { longitude: number; latitude: number; crs: 'WGS84' | 'GCJ02' | 'BD09'; source?: 'manual_coordinate' | 'amap_pick' | 'gpx_endpoint' | 'outdoor_pick' }
 export interface StopInput { label: string; region: string; time: string | null; note: string; role: 'departure' | 'visit' | 'waypoint' | 'transfer' | 'overnight'; location: Location | null }
 export interface CopySource { routeId: string; version: number; id?: string }
 export interface RouteStop extends StopInput { id: string; copiedFrom?: CopySource | null }
@@ -39,6 +39,7 @@ export interface CommandResult { route: RouteSnapshot; idMap: Record<string, str
 export interface JourneyList { items: JourneySummary[]; nextCursor: string | null }
 export * from './records.js';
 export * from './maps.js';
+export * from './routing.js';
 
 export class DomainError extends Error {
   constructor(public code: string, message: string, public statusCode = 422) { super(message); }

@@ -1,5 +1,5 @@
 import { DOMParser, type Element } from '@xmldom/xmldom';
-import { DomainError, geometryLimits, validateGeometry, geometryLength, isDate, type GpxPreview, type GeometryAsset } from '../../packages/contracts/src/index.js';
+import { DomainError, geometryLimits, geometrySourceLabels, validateGeometry, geometryLength, isDate, type GpxPreview, type GeometryAsset } from '../../packages/contracts/src/index.js';
 const invalid = () => new DomainError('INVALID_GPX', 'GPX 无法解析：请使用 UTF-8、带正确命名空间的 GPX 1.0／1.1 轨迹或路线文件，检查坐标、分段和采样字段。');
 export function parseGpx(xml: string): GpxPreview {
   if (Buffer.byteLength(xml, 'utf8') > geometryLimits.gpxBytes) throw new DomainError('FILE_TOO_LARGE', 'GPX 文件最多 1MiB，请先分割或简化。', 413);
@@ -46,7 +46,7 @@ export function parseGpx(xml: string): GpxPreview {
 }
 export const escapeXml = (text: string) => text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]!)).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
 export function writeGpx(title: string, assets: GeometryAsset[], partial: boolean) {
-  const tracks = assets.map((asset, index) => `<trk><name>${escapeXml(title)} · ${index + 1}</name><desc>${escapeXml(`${asset.sourceKind === 'manual' ? '手工补绘' : '导入参考'}；非自动确认 GPS 实录。${asset.sourceNote}`)}</desc>${asset.geometry.parts.map((part, p) => `<trkseg>${part.map(([lon, lat], i) => {
+  const tracks = assets.map((asset, index) => `<trk><name>${escapeXml(title)} · ${index + 1}</name><desc>${escapeXml(`${geometrySourceLabels[asset.sourceKind]}；非自动确认 GPS 实录。${asset.sourceNote}`)}</desc>${asset.routingInfo ? `<src>${escapeXml(asset.routingInfo.attribution)}</src><link href="https://www.openstreetmap.org/copyright"><text>OpenStreetMap contributors / ODbL 1.0</text></link>` : ''}${asset.geometry.parts.map((part, p) => `<trkseg>${part.map(([lon, lat], i) => {
     const sample = asset.samples?.[p]?.[i];
     return `<trkpt lat="${lat}" lon="${lon}">${sample?.elevation !== null && sample?.elevation !== undefined ? `<ele>${sample.elevation}</ele>` : ''}${sample?.time ? `<time>${escapeXml(sample.time)}</time>` : ''}</trkpt>`;
   }).join('')}</trkseg>`).join('')}</trk>`).join('');

@@ -1,12 +1,15 @@
 import { DomainError, type Location } from './index.js';
+import type { RoutingInfo } from './routing.js';
 export type Position = [number, number];
+export const geometrySourceLabels = { manual: '手工补绘', imported_reference: '导入参考', routing: '路网规划' } as const;
 export interface RouteGeometry { crs: 'WGS84' | 'GCJ02'; parts: Position[][] }
 export interface PointSample { elevation: number | null; time: string | null }
 export interface GeometryAsset {
-  id: string; routeId: string; sourceKind: 'manual' | 'imported_reference'; sourceNote: string;
+  id: string; routeId: string; sourceKind: 'manual' | 'imported_reference' | 'routing'; sourceNote: string;
   geometry: RouteGeometry; samples: PointSample[][] | null; pointCount: number; lengthM: number;
   exportPolicy: 'allowed' | 'unverified'; filename: string | null; createdAt: string;
   diagnostics: string[];
+  routingInfo?: RoutingInfo | null;
 }
 export type GeometrySummary = Omit<GeometryAsset, 'geometry' | 'samples'> & { crs: RouteGeometry['crs']; partCount: number };
 export interface GpxPreview { geometry: RouteGeometry; samples: PointSample[][]; pointCount: number; lengthM: number; warnings: string[] }

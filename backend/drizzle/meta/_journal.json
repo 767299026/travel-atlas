@@ -22,6 +22,13 @@
       "when": 1792650341033,
       "tag": "0002_quiet_photon",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1792661502911,
+      "tag": "0003_perfect_storm",
+      "breakpoints": true
     }
   ]
 }
