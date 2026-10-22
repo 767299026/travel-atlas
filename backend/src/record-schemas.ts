@@ -1,3 +1,4 @@
+import { placeInputSchema } from './atlas-routes.js';
 import { Type as T } from '@sinclair/typebox';
 const object = (properties: Parameters<typeof T.Object>[0]) => T.Object(properties, { additionalProperties: false });
 const text = (maxLength: number, minLength = 0) => T.String({ maxLength, minLength });
@@ -8,7 +9,7 @@ export const mutationSchema = object({ clientMutationId: text(80, 8) });
 export const copyFields = { planVersion: version, actualVersion: T.Union([version, T.Null()]), dayIds: T.Array(text(36, 1), { minItems: 1, maxItems: 30, uniqueItems: true }), mode: T.Union([T.Literal('append'), T.Literal('replace')]) };
 export const copyPreviewSchema = object(copyFields);
 export const copyApplySchema = object({ ...copyFields, clientMutationId: text(80, 8) });
-export const visitSchema = object({ routeVersion: version, visitedOn: date, note: text(4000), clientMutationId: text(80, 8) });
+export const visitSchema = object({ place: T.Optional(placeInputSchema), routeVersion: version, visitedOn: date, note: text(4000), clientMutationId: text(80, 8) });
 const diaryFields = {
   title: text(120, 1), occurredOn: T.Union([date, T.Null()]), body: text(14000), status: T.Union([T.Literal('draft'), T.Literal('written')]),
   association: T.Union([T.Null(), object({ journeyId: text(36, 1), routeId: nullableId, dayId: nullableId, stopId: nullableId })]),

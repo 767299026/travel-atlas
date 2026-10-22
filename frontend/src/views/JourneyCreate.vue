@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
-import { useRouter, onBeforeRouteLeave } from 'vue-router';
+import { useRouter, useRoute, onBeforeRouteLeave } from 'vue-router';
 import { api, errorText, mutationId } from '../api';
 import { parseDestinations, type JourneySummary } from '../../../packages/contracts/src/index.js';
 import AtlasIcon from '../components/AtlasIcon.vue';
-const router = useRouter(), busy = ref(false), error = ref(''), saved = ref(false);
-const form = reactive({ title: '', origin: '', destinations: '', startDate: '', duration: 3 });
+const page = useRoute(), router = useRouter(), busy = ref(false), error = ref(''), saved = ref(false);
+const form = reactive({ title: typeof page.query.title === 'string' ? page.query.title.slice(0, 80) : '', origin: '', destinations: typeof page.query.destination === 'string' ? page.query.destination.slice(0, 3600) : '', startDate: '', duration: 3 });
 let requestKey = mutationId(), previousPayload = '';
 async function create() { if (busy.value) return; busy.value = true; error.value = ''; const fields = { ...form, destinations: parseDestinations(form.destinations), startDate: form.startDate || null };
   const signature = JSON.stringify(fields); if (previousPayload && signature !== previousPayload) requestKey = mutationId(); previousPayload = signature;

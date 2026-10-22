@@ -1,10 +1,11 @@
+import { eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Database } from './db/client.js';
 import type { AppConfig } from './config.js';
 import { records } from './records.js';
 import { mediaService } from './media.js';
 import { copyApplySchema, copyPreviewSchema, diaryCreateSchema, diarySaveSchema, mutationSchema, versionMutationSchema, visitSchema } from './record-schemas.js';
-import { DomainError, type ActualCopyInput, type DiaryInput } from '../../packages/contracts/src/index.js';
+import { DomainError, type ActualCopyInput, type DiaryInput, type PlaceInput } from '../../packages/contracts/src/index.js';
 
 export interface RouteContext { authenticate: (request: FastifyRequest) => Promise<void>; respond: (request: FastifyRequest, data: unknown) => unknown }
 export function registerRecordRoutes(app: FastifyInstance, database: Database, config: AppConfig, context: RouteContext) {
@@ -14,10 +15,11 @@ export function registerRecordRoutes(app: FastifyInstance, database: Database, c
   app.post<{ Params: Id; Body: ActualCopyInput & Mutation }>('/api/v1/journeys/:id/actual-copy', { ...auth, schema: { body: copyApplySchema } }, async request => respond(request, await store.copyActual(request.auth!.user.id, request.params.id, request.body)));
   app.post<{ Params: Id; Body: Mutation }>('/api/v1/journeys/:id/actual', { ...auth, schema: { body: mutationSchema } }, async request => respond(request, await store.emptyActual(request.auth!.user.id, request.params.id, request.body)));
   app.get<{ Querystring: { journeyId?: string } }>('/api/v1/visits', auth, async request => respond(request, await store.listVisits(request.auth!.user.id, request.query.journeyId)));
-  app.post<{ Params: { id: string; stopId: string }; Body: { routeVersion: number; visitedOn: string; note: string } & Mutation }>('/api/v1/routes/:id/stops/:stopId/visit', { ...auth, schema: { body: visitSchema } }, async request => respond(request, await store.confirmVisit(request.auth!.user.id, request.params.id, request.params.stopId, request.body)));
+  app.post<{ Params: { id: string; stopId: string }; Body: { place?: PlaceInput; routeVersion: number; visitedOn: string; note: string } & Mutation }>('/api/v1/routes/:id/stops/:stopId/visit', { ...auth, schema: { body: visitSchema } }, async request => respond(request, await store.confirmVisit(request.auth!.user.id, request.params.id, request.params.stopId, request.body)));
   app.delete<{ Params: Id; Body: Mutation }>('/api/v1/visits/:id', { ...auth, schema: { body: mutationSchema } }, async request => respond(request, await store.removeVisit(request.auth!.user.id, request.params.id, request.body)));
   app.get('/api/v1/me/summary', auth, async request => respond(request, await store.accountSummary(request.auth!.user.id)));
-  app.get<{ Querystring: { journeyId?: string; cursor?: string } }>('/api/v1/diaries', auth, async request => respond(request, await store.listDiaries(request.auth!.user.id, request.query)));
+  app.get<{ Querystring: { journeyId?: string; cursor?: string; year?: string; status?: string; q?: string } }>('/api/v1/diaries', auth, async request => respond(request, await store.listDiaries(request.auth!.user.id, request.query)));
+  app.get('/api/v1/diaries/facets', auth, async request => { const rows = await database.db.select({ date: database.schema.diaries.occurredOn }).from(database.schema.diaries).where(eq(database.schema.diaries.ownerId, request.auth!.user.id)); return respond(request, { years: [...new Set(rows.map(r => r.date?.slice(0, 4) ?? 'unknown'))].sort().reverse() }); });
   app.get<{ Params: Id }>('/api/v1/diaries/:id', auth, async request => respond(request, await store.readDiary(request.auth!.user.id, request.params.id)));
   app.post<{ Body: DiaryInput & Mutation }>('/api/v1/diaries', { ...auth, schema: { body: diaryCreateSchema } }, async request => {
     const result = await store.saveDiary(request.auth!.user.id, null, request.body); await media.cleanRemoved(result.removedIds); return respond(request, result.data);

@@ -21,3 +21,9 @@ Package versions are recorded in `package-lock.json`. Dependencies retain their 
 The optional Leaflet 1.9.4 renderer retains its upstream BSD-2-Clause license in the installed package. It loads OpenHikingMap tiles from OpenMaps.fr only after the user requests them. Visible map attribution includes OpenHikingMap, a donation link to the tile service, and OpenStreetMap contributors. Service conditions checked 2026-10-22 are linked in [M3.2 documentation](docs/m3-routing.md); tile hosting permission and underlying OSM data licensing are distinct.
 
 BRouter 1.7.10 is installed locally from its official release, without committing its binaries or regional datasets. Its MIT license is retained in [licenses/BRouter-MIT.txt](licenses/BRouter-MIT.txt) and copied into the private installation. The original `hiking-mountain` profile is used unchanged. Regional routing data is based on © OpenStreetMap contributors under ODbL 1.0. Candidate provenance and GPX exports preserve this attribution; engine code licensing does not replace the data license.
+
+## Footprint overview geography
+
+The lightweight world geometry in `backend/assets/world.json` is derived from the Natural Earth 1:110m GeoJSON retained in the user-owned prototype. Natural Earth declares map data public domain: [terms](https://www.naturalearthdata.com/about/terms-of-use/), checked 2026-10-23. Required labels, identifiers, representative centers and rounded geometry are kept; these are reference regions, not navigation or survey data.
+
+Domestic metadata and geometry use fixed DataV GeoAtlas endpoints and ignored local cache; their geometry dataset is not committed. Sources, snapshot counts and remaining formal-use verification are recorded in [footprints and pages](docs/footprints-and-pages.md). No prototype photographs, sample trips or simulated visits are imported.

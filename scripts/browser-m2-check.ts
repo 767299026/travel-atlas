@@ -12,7 +12,7 @@ try {
   const context = await fixture.browser.newContext({ viewport: { width: 1280, height: 900 }, locale: 'zh-CN', reducedMotion: 'reduce' }); page = await context.newPage();
   const track = (page: any) => { page.on('pageerror', (error: Error) => errors.push(error.name + ': ' + error.message)); page.on('dialog', (dialog: any) => { if (dialog.type() === 'alert') errors.push('unexpected alert'); void dialog.accept(); }); };
   track(page);
-  async function login(page: any, username: string, password: string) { await page.locator('#username').fill(username); await page.locator('#password').fill(password); await page.getByRole('button', { name: '打开我的旅行簿' }).click(); await page.getByRole('button', { name: '旅程', exact: true }).waitFor(); }
+  async function login(page: any, username: string, password: string) { await page.locator('#username').fill(username); await page.locator('#password').fill(password); await page.getByRole('button', { name: '打开我的旅行簿' }).click(); await page.getByRole('button', { name: '旅程', exact: true }).click(); await page.getByRole('heading', { name: '下一程，去哪里', exact: true }).waitFor(); }
   await page.goto(fixture.web); await login(page, fixture.username, fixture.password);
   await page.getByRole('button', { name: '创建第一个行程' }).click(); await page.locator('#title').fill('M2 实际与日记验证'); await page.locator('#origin').fill('上海虹桥站'); await page.locator('#destinations').fill('黄山'); await page.locator('#duration').fill('2'); await page.locator('#date').fill('2026-10-20'); await page.getByRole('button', { name: '开始安排' }).click(); await page.getByRole('heading', { name: 'M2 实际与日记验证' }).waitFor();
   const journeyURL = page.url(), journeyId = journeyURL.split('/').at(-1)!;

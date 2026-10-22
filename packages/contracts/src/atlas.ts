@@ -1,0 +1,13 @@
+import type { Location } from './index.js';
+export interface PlaceInput { countryCode: string; areaCode?: string; cityName?: string }
+export interface AtlasPlace { key: string; countryCode: string; countryName: string; provinceCode: string | null; provinceName: string | null; cityCode: string | null; cityName: string | null; name: string; center: [number, number] | null }
+export interface AtlasCatalog { countries: { code: string; name: string }[]; provinces: { code: string; name: string }[]; cities: { code: string; name: string; provinceCode: string }[] }
+export interface AtlasCity { place: AtlasPlace; records: number; journeys: number; lastVisitedOn: string | null; wished: boolean }
+export interface AtlasOverview { year: string; years: string[]; countries: number; provinces: number; cities: number; records: number; wishes: number; unassigned: number; places: AtlasCity[] }
+export interface AtlasRecord { id: string; source: 'journey' | 'manual' | 'wish'; version: number; label: string; place: AtlasPlace | null; visitedOn: string | null; note: string; journeyId: string | null; routeId: string | null; detached: boolean }
+export interface AtlasDetail { place: AtlasPlace; records: AtlasRecord[]; nextCursor: number | null; journeys: { id: string; title: string }[]; plans: { id: string; title: string }[]; diaries: { id: string; title: string; occurredOn: string | null; status: 'draft' | 'written'; coverUrl: string | null }[] }
+export interface AtlasGeometry { code: string; name: string; center: [number, number] | null; geometry: { type: string; coordinates: unknown[] } }
+export interface AtlasMap { features: AtlasGeometry[]; attribution: string; sourceUrl: string }
+export interface PlaceRecordInput { kind: 'visited' | 'wish'; place: PlaceInput; visitedOn: string | null; note: string }
+export interface PersonalProfile { username: string; displayName: string; version: number }
+export const placeInputFor = (place: AtlasPlace): PlaceInput => place.countryCode === 'CHN' ? { countryCode: 'CHN', areaCode: place.cityCode ?? place.provinceCode!, ...(!place.cityCode && place.cityName ? { cityName: place.cityName } : {}) } : { countryCode: place.countryCode, cityName: place.cityName! };

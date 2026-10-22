@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, inArray, isNull, lt, or, sql, count } from 'drizzle-orm';
 import type { Database, DbExecutor } from './db/client.js';
 import type { AppConfig } from './config.js';
+import { resolvePlace } from './atlas-catalog.js';
+import type { PlaceInput } from '../../packages/contracts/src/index.js';
 import { repository } from './repository.js';
 import { DomainError, applyCommands, canonicalJson, clone, isDate, type ActualCopyInput, type ActualCopyPreview, type Diary, type DiaryAssociation, type DiaryAssociationInput, type DiaryInput, type MediaItem, type RouteSnapshot, type Visit } from '../../packages/contracts/src/index.js';
 
@@ -106,8 +108,9 @@ export function records(database: Database, config: AppConfig) {
       const rows = await db.select({ visit: s.visits, current: s.stops.id }).from(s.visits).leftJoin(s.stops, eq(s.stops.id, s.visits.stopId)).where(and(eq(s.visits.ownerId, ownerId), journeyId ? eq(s.visits.journeyId, journeyId) : undefined)).orderBy(desc(s.visits.createdAt)).limit(500);
       return rows.map(({ visit: { ownerId: _, createdAt, ...visit }, current }) => ({ ...visit, createdAt: createdAt.toISOString(), detached: !current }));
     },
-    async confirmVisit(ownerId: string, routeId: string, stopId: string, body: { routeVersion: number; visitedOn: string; note: string; clientMutationId: string }) {
+    async confirmVisit(ownerId: string, routeId: string, stopId: string, body: { place?: PlaceInput; routeVersion: number; visitedOn: string; note: string; clientMutationId: string }) {
       if (!isDate(body.visitedOn)) throw new DomainError('INVALID_DATE', '请填写有效的到访日期。');
+      const place = body.place ? await resolvePlace(body.place) : null;
       return db.transaction(async ex => {
         await lockUser(ex, ownerId); const scope = `visit:${stopId}`, cached = await storage.replay(ex, ownerId, scope, body.clientMutationId, body); if (cached.found) return cached.response;
         const route = await storage.readRoute(ex, ownerId, routeId); await lockJourney(ex, ownerId, route.journeyId);
@@ -116,7 +119,7 @@ export function records(database: Database, config: AppConfig) {
         if (latest.version !== body.routeVersion) throw new DomainError('VERSION_CONFLICT', '实际记录已更新，请加载最新版本后确认。', 409);
         const stop = latest.days.flatMap(d => d.stops).find(p => p.id === stopId); if (!stop) throw new DomainError('NOT_FOUND', '地点不存在。', 404);
         if ((await ex.select().from(s.visits).where(and(eq(s.visits.ownerId, ownerId), eq(s.visits.stopId, stopId)))).length) throw new DomainError('ALREADY_VISITED', '这个地点已经确认到访。', 409);
-        const visit = { id: randomUUID(), ownerId, journeyId: latest.journeyId, routeId, stopId, label: stop.label, region: stop.region, visitedOn: body.visitedOn, note: body.note, createdAt: new Date() };
+        const visit = { id: randomUUID(), place, location: stop.location, version: 1, ownerId, journeyId: latest.journeyId, routeId, stopId, label: stop.label, region: stop.region, visitedOn: body.visitedOn, note: body.note, createdAt: new Date() };
         await ex.insert(s.visits).values(visit); const { ownerId: _, ...fields } = visit; const result = { ...fields, createdAt: visit.createdAt.toISOString(), detached: false };
         await storage.remember(ex, ownerId, scope, body.clientMutationId, body, result); return result;
       });
@@ -127,11 +130,12 @@ export function records(database: Database, config: AppConfig) {
         await ex.delete(s.visits).where(eq(s.visits.id, id)); const result = { removed: true }; await storage.remember(ex, ownerId, scope, body.clientMutationId, body, result); return result; });
     },
     readDiary: (ownerId: string, id: string) => readDiary(db, ownerId, id),
-    async listDiaries(ownerId: string, query: { journeyId?: string; cursor?: string }) {
+    async listDiaries(ownerId: string, query: { journeyId?: string; cursor?: string; year?: string; status?: string; q?: string }) {
+      if (query.q && query.q.length > 100 || query.status && !['all', 'draft', 'written'].includes(query.status) || query.year && !/^(all|unknown|19[0-9]{2}|20[0-9]{2}|21[0-9]{2}|2200)$/.test(query.year)) throw new DomainError('VALIDATION_ERROR', '日记筛选条件无效。', 400);
       if (query.journeyId) await storage.summary(db, ownerId, query.journeyId);
       let before: { id: string; createdAt: Date } | undefined;
       if (query.cursor) { const [row] = await db.select({ id: s.diaries.id, createdAt: s.diaries.createdAt }).from(s.diaries).where(and(eq(s.diaries.id, query.cursor), eq(s.diaries.ownerId, ownerId))); if (!row) throw new DomainError('INVALID_CURSOR', '日记游标无效。', 400); before = row; }
-      const rows = await db.select({ id: s.diaries.id }).from(s.diaries).where(and(eq(s.diaries.ownerId, ownerId), query.journeyId ? sql`JSON_UNQUOTE(JSON_EXTRACT(${s.diaries.association}, '$.journeyId')) = ${query.journeyId}` : undefined, before ? or(lt(s.diaries.createdAt, before.createdAt), and(eq(s.diaries.createdAt, before.createdAt), lt(s.diaries.id, before.id))) : undefined)).orderBy(desc(s.diaries.createdAt), desc(s.diaries.id)).limit(21);
+      const rows = await db.select({ id: s.diaries.id }).from(s.diaries).where(and(eq(s.diaries.ownerId, ownerId), query.status && query.status !== 'all' ? eq(s.diaries.status, query.status as 'draft' | 'written') : undefined, query.year && query.year !== 'all' ? query.year === 'unknown' ? isNull(s.diaries.occurredOn) : sql`LEFT(${s.diaries.occurredOn}, 4) = ${query.year}` : undefined, query.q?.trim() ? sql`(LOCATE(${query.q.trim()}, ${s.diaries.title}) > 0 OR LOCATE(${query.q.trim()}, ${s.diaries.body}) > 0)` : undefined, query.journeyId ? sql`JSON_UNQUOTE(JSON_EXTRACT(${s.diaries.association}, '$.journeyId')) = ${query.journeyId}` : undefined, before ? or(lt(s.diaries.createdAt, before.createdAt), and(eq(s.diaries.createdAt, before.createdAt), lt(s.diaries.id, before.id))) : undefined)).orderBy(desc(s.diaries.createdAt), desc(s.diaries.id)).limit(21);
       return { items: await Promise.all(rows.slice(0, 20).map(r => readDiary(db, ownerId, r.id))), nextCursor: rows.length > 20 ? rows[19]!.id : null };
     },
     async saveDiary(ownerId: string, id: string | null, body: DiaryInput & { baseVersion?: number; clientMutationId: string }) {

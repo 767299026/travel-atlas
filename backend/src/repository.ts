@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, lt, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, lt, inArray, sql } from 'drizzle-orm';
 import type { Database, DbExecutor } from './db/client.js';
 import { DomainError, applyCommands, canonicalJson, isDate, nextDate, type JourneyCreate, type JourneySummary, type RouteSnapshot, type CommandRequest } from '../../packages/contracts/src/index.js';
 import { hashToken } from './security.js';
@@ -72,7 +72,8 @@ export function repository(database: Database) {
     storage: { readRoute, summary, replay, remember, revision, persist },
     readRoute: (ownerId: string, id: string) => readRoute(db, ownerId, id),
     summary: (ownerId: string, id: string) => summary(db, ownerId, id),
-    async list(ownerId: string, cursor?: string) {
+    async list(ownerId: string, cursor?: string, filter: { status?: 'planning' | 'completed' | 'archived'; q?: string } = {}) {
+      if (filter.q && filter.q.length > 100 || filter.status && !['planning', 'completed', 'archived'].includes(filter.status)) throw new DomainError('VALIDATION_ERROR', '行程筛选条件无效。', 400);
       let boundary: Date | undefined; let boundaryId = '';
       if (cursor) {
         try { const decoded: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString());
@@ -83,10 +84,12 @@ export function repository(database: Database) {
       // Timestamp + UUID cursor: use SQL expression only with bound values.
       const { or } = await import('drizzle-orm');
       const rows = await db.select({ id: s.journeys.id, createdAt: s.journeys.createdAt }).from(s.journeys)
-        .where(and(eq(s.journeys.ownerId, ownerId), boundary ? or(lt(s.journeys.createdAt, boundary), and(eq(s.journeys.createdAt, boundary), lt(s.journeys.id, boundaryId))) : undefined))
+        .where(and(eq(s.journeys.ownerId, ownerId), filter.status ? eq(s.journeys.status, filter.status) : undefined, filter.q?.trim() ? sql`(LOCATE(${filter.q.trim()}, ${s.journeys.title}) > 0 OR LOCATE(${filter.q.trim()}, CAST(${s.journeys.destinations} AS CHAR)) > 0)` : undefined, boundary ? or(lt(s.journeys.createdAt, boundary), and(eq(s.journeys.createdAt, boundary), lt(s.journeys.id, boundaryId))) : undefined))
         .orderBy(desc(s.journeys.createdAt), desc(s.journeys.id)).limit(21);
       const page = rows.slice(0, 20); const last = page.at(-1);
-      return { items: await Promise.all(page.map(x => summary(db, ownerId, x.id))), nextCursor: rows.length > 20 && last ? Buffer.from(JSON.stringify([last.createdAt.toISOString(), last.id])).toString('base64url') : null };
+      const items = await Promise.all(page.map(x => summary(db, ownerId, x.id)));
+      const covers = page.length ? await db.select({ association: s.diaries.association, mediaId: s.media.id }).from(s.diaries).innerJoin(s.diaryPhotos, eq(s.diaryPhotos.diaryId, s.diaries.id)).innerJoin(s.media, eq(s.media.id, s.diaryPhotos.mediaId)).where(and(eq(s.diaries.ownerId, ownerId), eq(s.media.ownerId, ownerId), eq(s.media.state, 'ready'), sql`JSON_UNQUOTE(JSON_EXTRACT(${s.diaries.association}, '$.journeyId')) IN (${sql.join(page.map(p => sql`${p.id}`), sql`, `)})`)).orderBy(desc(s.diaries.updatedAt), asc(s.diaryPhotos.sortOrder)) : [];
+      return { items: items.map(item => ({ ...item, coverUrl: covers.find(c => c.association?.journeyId === item.id) ? `/api/v1/media/${covers.find(c => c.association?.journeyId === item.id)!.mediaId}/content?variant=thumb` : null })), nextCursor: rows.length > 20 && last ? Buffer.from(JSON.stringify([last.createdAt.toISOString(), last.id])).toString('base64url') : null };
     },
     async create(ownerId: string, body: JourneyCreate) {
       if (!body.title.trim() || !isDate(body.startDate) || !isDate(nextDate(body.startDate, body.duration - 1)) || body.destinations.some(x => !x.trim())) throw new DomainError('VALIDATION_ERROR', '请检查旅程名称、目的地和日期。');

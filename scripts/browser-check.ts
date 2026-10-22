@@ -20,7 +20,7 @@ try {
   await database.db.insert(database.schema.users).values({ id: randomUUID(), username: 'browser-fixture', displayName: '浏览器验证', passwordHash: await hashPassword(password), createdAt: new Date() });
   app = await buildApp(cfg, database); await app.listen({ host: '127.0.0.1', port: 3090 });
   const vitePath = join(dirname(createRequire(join(projectRoot, 'frontend/package.json')).resolve('vite/package.json')), 'bin/vite.js');
-  preview = spawn(process.execPath, [vitePath, 'preview', '--host', '127.0.0.1', '--port', '5188', '--strictPort'], { cwd: join(projectRoot, 'frontend'), stdio: 'ignore', env: { ...process.env, TRAVEL_API_TARGET: 'http://127.0.0.1:3090' } });
+  preview = spawn(process.execPath, [vitePath, 'preview', '--host', '127.0.0.1', '--port', '5188', '--strictPort'], { cwd: join(projectRoot, 'frontend'), stdio: 'ignore', env: { ...process.env, TRAVEL_API_TARGET: 'http://127.0.0.1:3090', ...(process.env.FRONTEND_TEST_DIST ? { TRAVEL_DIST_DIR: process.env.FRONTEND_TEST_DIST } : {}) } });
   let ready = false;
   for (let attempt = 0; attempt < 50; attempt++) { if (preview.exitCode !== null) throw new Error('Vue preview failed to start'); try { if ((await fetch('http://127.0.0.1:5188')).ok) { ready = true; break; } } catch {} await new Promise(resolve => setTimeout(resolve, 100)); }
   if (!ready) throw new Error('Vue preview readiness timeout');
@@ -28,7 +28,7 @@ try {
   browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/opt/google/chrome/chrome', headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: 'zh-CN' }); const page = await context.newPage(); const errors: string[] = [];
   page.on('pageerror', (error: Error) => errors.push(error.name));
-  const login = async () => { await page.locator('#username').fill('browser-fixture'); await page.locator('#password').fill(password); await page.getByRole('button', { name: '打开我的旅行簿' }).click(); await page.getByRole('button', { name: '旅程', exact: true }).waitFor(); };
+  const login = async () => { await page.locator('#username').fill('browser-fixture'); await page.locator('#password').fill(password); await page.getByRole('button', { name: '打开我的旅行簿' }).click(); await page.getByRole('button', { name: '旅程', exact: true }).click(); await page.getByRole('heading', { name: '下一程，去哪里', exact: true }).waitFor(); };
   await page.goto('http://127.0.0.1:5188'); await login();
   await page.getByRole('button', { name: '创建第一个行程' }).click();
   await page.locator('#title').fill('黄山与宏村 · 浏览器验证'); await page.locator('#origin').fill('杭州东站'); await page.locator('#destinations').fill('黄山、宏村'); await page.locator('#duration').fill('2');

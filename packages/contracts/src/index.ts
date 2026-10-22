@@ -16,6 +16,7 @@ export interface RouteSegment {
 }
 export interface RouteSnapshot { id: string; journeyId: string; layer: 'plan' | 'actual'; version: number; note: string; days: RouteDay[]; segments: RouteSegment[]; copiedFrom?: CopySource | null }
 export interface JourneySummary {
+  coverUrl?: string | null;
   id: string; title: string; destinations: string[]; status: 'planning' | 'completed' | 'archived';
   version: number; timezone: string; createdAt: string; updatedAt: string; planRouteId: string; actualRouteId: string | null; dayCount: number;
 }
@@ -151,3 +152,4 @@ export function applyCommands(input: RouteSnapshot, operations: RouteCommand[], 
   return { route, idMap, invalidatedSegmentIds: [...invalidated] };
 }
 export * from './shares.js';
+export * from './atlas.js';

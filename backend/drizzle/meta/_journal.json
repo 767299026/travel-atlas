@@ -36,6 +36,13 @@
       "when": 1792667711145,
       "tag": "0004_light_firestar",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1792684839502,
+      "tag": "0005_flashy_mojo",
+      "breakpoints": true
     }
   ]
 }

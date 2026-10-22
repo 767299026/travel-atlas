@@ -1,5 +1,5 @@
 import { mysqlTableCreator, varchar, text, mediumtext, double, int, boolean, datetime, json, mysqlEnum, uniqueIndex, index, foreignKey } from 'drizzle-orm/mysql-core';
-import type { Location, RouteSnapshot, TravelMode, CopySource, DiaryAssociation, RouteGeometry, PointSample, RoutingInput, RoutingInfo, ShareSnapshot, ShareBindings } from '../../../packages/contracts/src/index.js';
+import type { Location, RouteSnapshot, TravelMode, CopySource, DiaryAssociation, RouteGeometry, PointSample, RoutingInput, RoutingInfo, ShareSnapshot, ShareBindings, AtlasPlace } from '../../../packages/contracts/src/index.js';
 
 export function buildSchema(prefix = '') {
   const table = mysqlTableCreator(name => prefix + name);
@@ -53,6 +53,7 @@ export function buildSchema(prefix = '') {
   const visits = table('visits', {
     id: id(), ownerId: varchar('owner_id', { length: 36 }).notNull().references(() => users.id), journeyId: varchar('journey_id', { length: 36 }).notNull().references(() => journeys.id),
     routeId: varchar('route_id', { length: 36 }).notNull().references(() => routes.id), stopId: varchar('stop_id', { length: 36 }).notNull(),
+    place: json('place').$type<AtlasPlace | null>(), location: json('location').$type<Location | null>(), version: int('version').notNull().default(1),
     label: varchar('label', { length: 160 }).notNull(), region: varchar('region', { length: 120 }).notNull(), visitedOn: varchar('visited_on', { length: 10 }).notNull(), note: text('note').notNull(), createdAt: created(),
   }, t => [uniqueIndex(prefix + 'visits_owner_stop_uq').on(t.ownerId, t.stopId), index(prefix + 'visits_owner_journey_idx').on(t.ownerId, t.journeyId)]);
   const diaries = table('diaries', {
@@ -96,6 +97,10 @@ export function buildSchema(prefix = '') {
     tokenHash: varchar('token_hash', { length: 64 }).notNull(), snapshot: json('snapshot').$type<ShareSnapshot>().notNull(), bindings: json('bindings').$type<ShareBindings[]>().notNull(),
     createdAt: created(), expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(), revokedAt: datetime('revoked_at', { mode: 'date', fsp: 3 }),
   }, t => [index(prefix + 'share_owner_journey_idx').on(t.ownerId, t.journeyId), index(prefix + 'share_expiry_idx').on(t.expiresAt)]);
-  return { users, sessions, journeys, routes, days, stops, segments, revisions, mutations, visits, diaries, media, diaryPhotos, auditEvents, geometries, routingJobs, routingCandidates, shares };
+  const placeRecords = table('place_records', {
+    id: id(), ownerId: varchar('owner_id', { length: 36 }).notNull().references(() => users.id), kind: mysqlEnum('kind', ['visited', 'wish']).notNull(), placeKey: varchar('place_key', { length: 40 }).notNull(), place: json('place').$type<AtlasPlace>().notNull(),
+    visitedOn: varchar('visited_on', { length: 10 }), note: text('note').notNull(), version: int('version').notNull().default(1), createdAt: created(),
+  }, t => [index(prefix + 'place_owner_kind_idx').on(t.ownerId, t.kind), index(prefix + 'place_owner_key_idx').on(t.ownerId, t.placeKey)]);
+  return { users, sessions, journeys, routes, days, stops, segments, revisions, mutations, visits, diaries, media, diaryPhotos, auditEvents, geometries, routingJobs, routingCandidates, shares, placeRecords };
 }
-export const { users, sessions, journeys, routes, days, stops, segments, revisions, mutations, visits, diaries, media, diaryPhotos, auditEvents, geometries, routingJobs, routingCandidates, shares } = buildSchema();
+export const { users, sessions, journeys, routes, days, stops, segments, revisions, mutations, visits, diaries, media, diaryPhotos, auditEvents, geometries, routingJobs, routingCandidates, shares, placeRecords } = buildSchema();

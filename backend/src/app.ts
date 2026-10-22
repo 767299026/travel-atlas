@@ -13,6 +13,8 @@ import { DomainError, type CommandRequest, type JourneyCreate, type SessionData 
 import { registerRecordRoutes } from './record-routes.js';
 import { registerAdminRoutes } from './admin.js';
 import { registerMapRoutes } from './map-routes.js';
+import { registerPersonalRoutes } from './personal-routes.js';
+import { registerAtlasRoutes } from './atlas-routes.js';
 import { registerShareRoutes } from './share-routes.js';
 import { registerRoutingRoutes } from './routing-routes.js';
 
@@ -69,7 +71,7 @@ export async function buildApp(config: AppConfig, database: Database, dependenci
   app.post('/api/v1/auth/logout', { preHandler: authenticate }, async (request, reply) => {
     await db.delete(s.sessions).where(eq(s.sessions.tokenHash, request.auth!.tokenHash)); reply.clearCookie(cookieName, { path: '/' }); return response(request, { loggedOut: true });
   });
-  app.get<{ Querystring: { cursor?: string } }>('/api/v1/journeys', { preHandler: authenticate }, async request => response(request, await store.list(request.auth!.user.id, request.query.cursor)));
+  app.get<{ Querystring: { cursor?: string; status?: 'planning' | 'completed' | 'archived'; q?: string } }>('/api/v1/journeys', { preHandler: authenticate }, async request => response(request, await store.list(request.auth!.user.id, request.query.cursor, request.query)));
   app.post<{ Body: JourneyCreate }>('/api/v1/journeys', { preHandler: authenticate, schema: { body: createSchema } }, async (request, reply) => reply.code(201).send(response(request, await store.create(request.auth!.user.id, request.body))));
   app.get<{ Params: { id: string } }>('/api/v1/journeys/:id', { preHandler: authenticate }, async request => response(request, await store.summary(request.auth!.user.id, request.params.id)));
   type Metadata = Parameters<typeof store.metadata>[2];
@@ -80,6 +82,8 @@ export async function buildApp(config: AppConfig, database: Database, dependenci
   registerAdminRoutes(app, database, { authenticate, respond: response });
   registerMapRoutes(app, database, config, { authenticate, respond: response }, dependencies.mapFetch);
   registerRoutingRoutes(app, database, config, { authenticate, respond: response }, dependencies);
+  registerPersonalRoutes(app, database, { authenticate, respond: response });
+  registerAtlasRoutes(app, database, { authenticate, respond: response });
   registerShareRoutes(app, database, config, { authenticate, respond: response });
   return app;
 }

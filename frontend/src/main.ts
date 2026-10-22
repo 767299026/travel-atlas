@@ -10,8 +10,12 @@ import './styles/prototype-layout.css';
 import './styles/prototype-base.css';
 import './styles/prototype-journeys.css';
 import './styles/app.css';
+import './styles/atlas.css';
 const router = createRouter({ history: createWebHistory(), routes: [
-  { path: '/', redirect: '/journeys' }, { path: '/journeys', component: JourneyList },
+  { path: '/', redirect: '/map' }, { path: '/journeys', component: JourneyList },
+  { path: '/map', component: () => import('./views/Footprints.vue') },
+  { path: '/wishes', component: () => import('./views/Wishes.vue'), meta: { compact: true } },
+  { path: '/settings', component: () => import('./views/Settings.vue'), meta: { compact: true } },
   { path: '/journeys/new', component: JourneyCreate }, { path: '/journeys/:id', component: JourneyEditor },
   { path: '/journeys/:id/actual', component: JourneyEditor },
   { path: '/journeys/:id/map', component: () => import('./views/RouteMap.vue') },
