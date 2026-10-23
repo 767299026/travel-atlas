@@ -194,3 +194,7 @@ M3 的 `npm run test:browser:m3` 与真实服务 `npm run test:browser:amap` 复
 图鉴由自绘 SVG 改为已有 Leaflet Canvas，保留原地区数据与市级高德，默认国内视野放大；标题、画布、图源、统计和抽屉分区布局，三工具按钮各 44×44。性能测量、社区方案对照和真机边界见 [手机地图专题](mobile-map-rendering.md)。
 
 `npm run test:browser:mobile` 提供手机布局／实际 CDP 触摸检查，性能脚本为 `scripts/browser-map-performance.ts`，仍通过 `FRONTEND_TEST_DIST` 选择暂存构建。用户提供的 `tmp/` 截图不会提交。
+
+## 地图紧凑入口与单行抽屉（2026-10-23）
+
+顶部改为「时光／寻找」短入口，年份与地区搜索放在顶部遮罩浮层；手机抽屉收起仅 56px，内容展开才显示，桌面独立侧栏沿用。393×775 的湖北地图画布由约 182px 增至 375px。19 组手机检查、13 组地图、16 组页面回归和 9 组实际域名检查通过。主站 screen 已切换暂存构建，保留回退版本；数据库与原型不变，截图及边界见 [手机地图专题](mobile-map-rendering.md)。

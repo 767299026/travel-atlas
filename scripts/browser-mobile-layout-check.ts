@@ -14,7 +14,28 @@ try {
   const context = await fixture.browser.newContext({ viewport: { width: 393, height: 775 }, deviceScaleFactor: 2.75, isMobile: true, hasTouch: true, locale: 'zh-CN' });
   await context.addInitScript({ content: amapFixture }); page = await context.newPage(); page.on('pageerror', (e: Error) => errors.push(e.message));
   await page.goto(fixture.web); await page.locator('#username').fill(fixture.username); await page.locator('#password').fill(fixture.password); await page.getByRole('button', { name: '打开我的旅行簿', exact: true }).tap();
-  await page.getByRole('combobox', { name: '足迹地区', exact: true }).selectOption('420000'); await page.getByRole('heading', { name: '湖北省', exact: true }).waitFor(); await page.locator('.atlas-region-name').first().waitFor();
+  await page.getByRole('group', { name: '足迹地区地图', exact: true }).waitFor();
+  assert.equal(await page.getByRole('searchbox', { name: '搜索城市足迹', exact: true }).count(), 0);
+  assert.equal(await page.getByRole('combobox', { name: '足迹年份', exact: true }).count(), 0);
+  assert.equal(await page.locator('.atlas-drawer-scroll').count(), 0);
+  assert.equal((await page.locator('.atlas-drawer-toggle').innerText()).trim(), '走过的地方');
+  cases.push('collapsed-map-has-only-short-filter-entries-and-one-memory-row');
+  await page.getByRole('button', { name: '寻找', exact: true }).tap();
+  const searchDialog = page.getByRole('dialog', { name: '寻找', exact: true }), search = page.getByRole('searchbox', { name: '搜索城市足迹', exact: true });
+  await searchDialog.waitFor(); assert.equal(await search.evaluate((e: HTMLElement) => document.activeElement === e), true);
+  await search.fill('湖北 武'); await searchDialog.getByRole('button', { name: /武汉市/ }).waitFor();
+  await search.fill('不存在的城市xyz'); await page.getByText('没有找到匹配城市', { exact: true }).waitFor();
+  await page.screenshot({ path: output + '/search-overlay-393x775.png' });
+  await page.keyboard.press('Escape'); await searchDialog.waitFor({ state: 'hidden' });
+  assert.equal(await page.getByRole('button', { name: '寻找', exact: true }).evaluate((e: HTMLElement) => document.activeElement === e), true);
+  cases.push('search-overlay-focus-multi-term-matching-empty-state-and-escape');
+  await page.getByRole('button', { name: '寻找', exact: true }).tap(); await page.mouse.click(4, 760); await searchDialog.waitFor({ state: 'hidden' });
+  cases.push('search-overlay-backdrop-dismisses');
+  await page.getByRole('button', { name: '时光', exact: true }).tap(); await page.getByRole('combobox', { name: '足迹年份', exact: true }).selectOption('2025');
+  await page.getByRole('dialog', { name: '时光', exact: true }).waitFor({ state: 'hidden' }); assert.equal(await page.locator('.atlas-filter-button.active').innerText(), '时光');
+  await page.getByRole('button', { name: '时光', exact: true }).tap(); await page.getByRole('combobox', { name: '足迹年份', exact: true }).selectOption('all');
+  cases.push('time-overlay-selects-year-and-closes-with-short-active-indicator');
+  await page.getByRole('button', { name: '寻找', exact: true }).click(); await page.getByRole('combobox', { name: '足迹地区', exact: true }).selectOption('420000'); await page.getByRole('heading', { name: '湖北省', exact: true }).waitFor(); await page.locator('.atlas-region-name').first().waitFor();
   const audit = async (label: string, city = false) => { await page.waitForTimeout(250);
     const result = await page.evaluate(`(city => {
       const rect = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; };
@@ -23,7 +44,7 @@ try {
       return { header, map, source, summary, drawer, nav, buttons, overflow: document.documentElement.scrollWidth > innerWidth, viewportHeight: visualViewport?.height ?? innerHeight };
     })(${JSON.stringify(city)})`);
 
-    assert.equal(result.overflow, false, label); assert.ok(result.header.bottom <= result.map.y + 1, label + ' heading'); assert.ok(result.map.bottom <= result.source.y + 1, label + ' map/source'); assert.ok(result.source.bottom <= result.summary.y + 1, label + ' source/summary'); assert.ok(result.summary.bottom <= result.drawer.y + 1, label + ' summary/drawer'); assert.ok(result.drawer.bottom <= result.nav.y + 1, label + ' drawer/nav'); assert.ok(result.nav.bottom <= result.viewportHeight + 1, label + ' viewport'); assert.ok(result.map.height >= 80, label + ' map height');
+    assert.equal(result.overflow, false, label); assert.ok(result.header.bottom <= result.map.y + 1, label + ' heading'); assert.ok(result.map.bottom <= result.source.y + 1, label + ' map/source'); assert.ok(result.source.bottom <= result.summary.y + 1, label + ' source/summary'); assert.ok(result.summary.bottom <= result.drawer.y + 1, label + ' summary/drawer'); assert.ok(result.drawer.bottom <= result.nav.y + 1, label + ' drawer/nav'); assert.ok(result.nav.bottom <= result.viewportHeight + 1, label + ' viewport'); assert.ok(result.map.height >= 190, label + ' map height'); assert.equal(result.drawer.height, 56, label + ' single-row drawer'); assert.equal(await page.locator('.atlas-drawer-scroll').count(), 0, label + ' hidden drawer content'); if (label === 'province-393x775') assert.ok(result.map.height >= 350, 'map reclaims search and drawer space');
     assert.equal(result.buttons.length, 3); for (let i=0;i<3;i++) { const b=result.buttons[i]!; assert.equal(b.width,44); assert.equal(b.height,44); assert.equal(b.radius,'0px'); assert.equal(b.receivesPointer,true,label+' toolbar '+i); if(i) assert.ok(result.buttons[i-1]!.bottom<=b.y+.5,label+' separate toolbar buttons'); }
     await page.screenshot({ path: output+'/'+label+'.png' }); await writeFile(output+'/'+label+'.json',JSON.stringify(result,null,2)); cases.push(label);
   };

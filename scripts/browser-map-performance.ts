@@ -10,7 +10,7 @@ try{
  const cdp=await context.newCDPSession(page);await cdp.send('Performance.enable');await cdp.send('Emulation.setCPUThrottlingRate',{rate:4});
  const results=[];
  for(const scope of (process.env.PERF_SCOPES||'100000,420000').split(',')){
-  if(scope==='world')await page.getByRole('button',{name:'世界',exact:true}).click();else await page.getByRole('combobox',{name:'足迹地区',exact:true}).selectOption(scope);await page.waitForFunction(()=>!!document.querySelector('[aria-label="足迹地区地图"]'));await page.waitForTimeout(300);
+  if(scope==='world')await page.getByRole('button',{name:'世界',exact:true}).click();else {await page.getByRole('button',{name:'寻找',exact:true}).click();await page.getByRole('combobox',{name:'足迹地区',exact:true}).selectOption(scope);if(await page.getByRole('dialog',{name:'寻找',exact:true}).count())await page.getByRole('button',{name:'关闭弹窗',exact:true}).click();}await page.waitForFunction(()=>!!document.querySelector('[aria-label="足迹地区地图"]'));await page.waitForTimeout(300);
   const svg=page.getByRole('group',{name:'足迹地区地图',exact:true}),box=(await svg.boundingBox())!;
   await page.evaluate(`(() => {const w=window;w.perfSample={frames:[],longTasks:[],pathWrites:0,last:0,active:true};w.perfObserver=new MutationObserver(rs=>w.perfSample.pathWrites+=rs.filter(r=>r.type==='attributes').length);w.perfObserver.observe(document.querySelector('[aria-label="足迹地区地图"]'),{attributes:true,attributeFilter:['d'],subtree:true});w.taskObserver=new PerformanceObserver(list=>w.perfSample.longTasks.push(...list.getEntries().map(e=>e.duration)));w.taskObserver.observe({type:'longtask'});function frame(t){const s=w.perfSample;if(!s.active)return;if(s.last)s.frames.push(t-s.last);s.last=t;requestAnimationFrame(frame);}requestAnimationFrame(frame);})()`);
 
