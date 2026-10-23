@@ -4,8 +4,8 @@ import { api, ApiError } from '../api';
 import { loadAMap, displayConverter } from '../maps/amap';
 import { geometrySourceLabels, type AtlasCityLayer, type Position } from '../../../packages/contracts/src/index.js';
 import AtlasIcon from './AtlasIcon.vue';
-const props = defineProps<{ code: string; year: string; revision: number }>();
-const emit = defineEmits<{ record: [id: string]; journey: [id: string] }>();
+const props = defineProps<{ code: string; year: string; revision: number; autoEntry?: boolean }>();
+const emit = defineEmits<{ record: [id: string]; journey: [id: string]; zoomOut: [] }>();
 const container = ref<HTMLElement>(), layer = ref<AtlasCityLayer | null>(null), loading = ref(false), online = ref(false), error = ref(''), showPoints = ref(true), showPaths = ref(true), zoom = ref(10), focus = ref('');
 let labels: { root: HTMLElement; button: HTMLButtonElement; position: Position }[] = [];
 let map: any, sdk: any, overlays: any[] = [], convert: ReturnType<typeof displayConverter>, generation = 0, rendering = 0, disposed = false, currentCity = '', observer: ResizeObserver | undefined, resizeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -19,7 +19,7 @@ async function load() {
     if (disposed || current !== generation) return; layer.value = data; sdk = apiSdk;
     if (!map) {
       convert = displayConverter(sdk); map = new sdk.Map(container.value, { zoom: 10, center: [105, 35], viewMode: '2D', resizeEnable: true, scrollWheel: false, zoomEnable: true, touchZoom: true, showLabel: true, keyboardEnable: true, animateEnable: false });
-      map.on('zoomend', () => { if (!disposed) { zoom.value = map.getZoom(); layoutLabels(); } }); map.on('moveend', layoutLabels);
+      map.on('zoomend', zoomEnded); map.on('moveend', layoutLabels);
       online.value = true;
     }
     if (currentCity !== props.code) {
@@ -27,7 +27,7 @@ async function load() {
       await new Promise<void>((resolve, reject) => { const timer = setTimeout(() => reject(new Error('城市定位超时，请重试地图。')), 15000); map.setCity(code, () => { clearTimeout(timer); resolve(); }); });
       if (disposed || current !== generation) return; currentCity = code; map.setZoom(10);
     }
-    await render(true);
+    await render(!props.autoEntry); previousZoom = map.getZoom();
   } catch (e) { if (!disposed && current === generation) error.value = safeError(e); }
   finally { if (current === generation) loading.value = false; }
 }
@@ -52,7 +52,7 @@ async function render(fit = false) {
       }
     }
     if (disposed || current !== rendering) return; if (overlays.length) map.remove(overlays); overlays = next; labels = nextLabels; map.add(overlays);
-    if (fit && overlays.length) map.setFitView(overlays, true, fitPadding(), 15);
+    if (fit && overlays.length) { fitting = true; map.setFitView(overlays, true, fitPadding(), 15); previousZoom = map.getZoom(); fitting = false; }
     zoom.value = map.getZoom(); layoutLabels();
   } catch (e) { if (!disposed && current === rendering) { if (overlays.length) map.remove(overlays); overlays = []; error.value = safeError(e); } }
 }
@@ -71,7 +71,13 @@ function layoutLabels() {
     item.button.style.visibility = shown ? 'visible' : 'hidden';
   }
 }
-let lastWheel = 0;
+let lastWheel = 0, zoomNavigationTimer: ReturnType<typeof setTimeout> | undefined, fitting = false, previousZoom = 10;
+function zoomEnded() {
+  if (disposed || !map) return;
+  const level = map.getZoom(), shrinking = level < previousZoom; previousZoom = level; zoom.value = level; layoutLabels();
+  clearTimeout(zoomNavigationTimer);
+  if (!loading.value && !fitting && shrinking && level <= 7) zoomNavigationTimer = setTimeout(() => { if (!disposed && map?.getZoom() <= 7) emit('zoomOut'); }, 180);
+}
 function wheel(e: WheelEvent) {
   if (!map || !e.deltaY || performance.now() - lastWheel < 100 || (e.target as HTMLElement).closest('.city-layer-controls,.atlas-map-tools')) return;
   lastWheel = performance.now();
@@ -82,10 +88,10 @@ function wheel(e: WheelEvent) {
   zoom.value = map.getZoom();
 }
 function zoomBy(step: number) { if (map) { map.setZoom(Math.max(3, Math.min(20, map.getZoom() + step))); zoom.value = map.getZoom(); } }
-function fit() { if (overlays.length) map.setFitView(overlays, true, fitPadding(), 15); else { map?.setCity(props.code); map?.setZoom(10); } }
+function fit() { clearTimeout(zoomNavigationTimer); fitting = true; if (overlays.length) map.setFitView(overlays, true, fitPadding(), 15); else { map?.setCity(props.code); map?.setZoom(10); } previousZoom = map?.getZoom() ?? 10; fitting = false; }
 watch(() => [props.code, props.year, props.revision], () => { if (container.value) void load(); });
-onMounted(() => { void load(); observer = new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (!disposed && map) { map.resize?.(); if (overlays.length) fit(); } }, 150); }); if (container.value) observer.observe(container.value); });
-onBeforeUnmount(() => { disposed = true; generation++; rendering++; observer?.disconnect(); clearTimeout(resizeTimer); map?.destroy(); });
+onMounted(() => { void load(); observer = new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (!disposed && map) { map.resize?.(); if (overlays.length && !props.autoEntry) fit(); } }, 150); }); if (container.value) observer.observe(container.value); });
+onBeforeUnmount(() => { disposed = true; generation++; rendering++; observer?.disconnect(); clearTimeout(resizeTimer); clearTimeout(zoomNavigationTimer); map?.destroy(); });
 </script>
 <template>
   <div class="atlas-canvas city-footprint-canvas" :data-city="code" :data-zoom="zoom" :data-points="layer?.points.length ?? 0" :data-paths="layer?.paths.length ?? 0" @wheel.capture.prevent.stop="wheel">

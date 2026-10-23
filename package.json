@@ -41,6 +41,7 @@
     "demo": "tsx scripts/demo.ts",
     "test:browser:atlas": "tsx scripts/browser-atlas-check.ts",
     "test:browser:mobile": "tsx scripts/browser-mobile-layout-check.ts",
+    "test:browser:atlas-zoom": "tsx scripts/browser-atlas-zoom-check.ts",
     "test:browser:map-perf": "tsx scripts/browser-map-performance.ts"
   },
   "devDependencies": {
