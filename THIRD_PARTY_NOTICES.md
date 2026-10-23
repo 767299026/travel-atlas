@@ -31,3 +31,7 @@ Domestic metadata and geometry use fixed DataV GeoAtlas endpoints and ignored lo
 ## Reference atlas renderer
 
 The China, province and world reference atlas reuses the existing Leaflet 1.9.4 Canvas renderer (BSD-2-Clause). GeoJSON source attribution remains visible below the map. This reference renderer fetches no background tile service; OpenHikingMap is used only by the separate outdoor view described above. See [mobile rendering notes](docs/mobile-map-rendering.md).
+
+## Reference atlas label anchors
+
+Administrative names use [Mapbox polylabel](https://github.com/mapbox/polylabel) 2.1.0 to choose an interior point of the largest polygon component in Web Mercator. The anchor is computed once per feature; recorded visits retain their original coordinates. The package and its tinyqueue 3.0.0 dependency use ISC licenses, retained in [polylabel](licenses/polylabel-ISC.txt) and [tinyqueue](licenses/tinyqueue-ISC.txt). Checked 2026-10-23; exact versions are in the lockfile.

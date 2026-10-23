@@ -4,12 +4,18 @@ import type * as Leaflet from 'leaflet';
 import { api, ApiError, errorText } from '../api';
 import type { AtlasCity, AtlasMap } from '../../../packages/contracts/src/index.js';
 import MapTools from './MapTools.vue';
+import { atlasLabelPoint } from '../maps/atlasLabels';
 import { atlasPalette, atlasZoomLevels, containsAtlasPoint, type AtlasCamera } from '../maps/atlasNavigation';
 const props = defineProps<{ scope: string; places: AtlasCity[]; selected: string | null; camera?: AtlasCamera | null; navigationEnabled?: boolean }>();
 const emit = defineEmits<{ region: [code: string]; place: [key: string]; zoomScope: [code: string, camera: AtlasCamera] }>();
 const container = ref<HTMLElement>(), data = ref<AtlasMap | null>(null), loading = ref(false), error = ref(''), zoom = ref(1), visitedCount = ref(0);
 let library: typeof Leaflet, map: Leaflet.Map | undefined, regions: Leaflet.GeoJSON | undefined, pins: Leaflet.LayerGroup | undefined, labels: Leaflet.LayerGroup | undefined, generation = 0, disposed = false, homeZoom = 0, observer: ResizeObserver | undefined, resizeTimer: ReturnType<typeof setTimeout>;
-type Label = { marker: Leaflet.Marker; text: HTMLElement; kind: 'place' | 'region'; width: number };
+type Label = { marker: Leaflet.Marker; text: HTMLElement; kind: 'place' | 'region'; width: number; height: number };
+// Dimensions include the real font and padding; measure once, outside animation frames.
+function measureLabels() {
+  for (const item of labelItems) { item.width = item.text.offsetWidth; item.height = item.text.offsetHeight; }
+}
+function refreshLabelMetrics() { if (!disposed) { measureLabels(); layoutLabels(); } }
 let labelItems: Label[] = [];
 let fitting = false, cameraTouched = false, lastZoom = 0, zoomAnchor: Leaflet.LatLng | null = null;
 let navigationTimer: ReturnType<typeof setTimeout> | undefined;
@@ -20,7 +26,7 @@ function interruptCenter() {
   if (!map || !centering.value) return;
   if (finishCenter) map.off('moveend', finishCenter); finishCenter = undefined;
   // Keep the zoomend caused by stop() out of the automatic region navigation.
-  map.stop(); lastZoom = map.getZoom(); fitting = false; centering.value = false; cameraTouched = true;
+  map.stop(); finishLabelZoom(); lastZoom = map.getZoom(); fitting = false; centering.value = false; cameraTouched = true;
   clearTimeout(navigationTimer);
 }
 function toggleTools(open: boolean) { toolsOpen.value = open; void nextTick(layoutLabels); }
@@ -73,31 +79,52 @@ function renderLabels() {
     const content = document.createElement('span'); content.className = 'atlas-place-content';
     const dot = document.createElement('span'); dot.className = 'pin-core'; const text = document.createElement('span'); text.className = 'pin-label'; text.textContent = p.place.name; content.append(dot, text);
     const marker = library.marker([p.place.center![1], p.place.center![0]], { icon: library.divIcon({ html: content, className: 'atlas-place-marker' + (p.records ? '' : ' wish') + (props.selected === p.place.key ? ' selected' : ''), iconSize: [14, 14], iconAnchor: [7, 7] }), keyboard: true, title: p.place.name, zIndexOffset: 200 }).addTo(pins);
-    markName(marker, p.place.name + (p.records ? '，已到访' : '，想去')); marker.on('click', () => emit('place', p.place.key)); labelItems.push({ marker, text, kind: 'place', width: Math.min(p.place.name.length * 12, 168) });
+    markName(marker, p.place.name + (p.records ? '，已到访' : '，想去')); marker.on('click', () => emit('place', p.place.key)); labelItems.push({ marker, text, kind: 'place', width: 0, height: 0 });
   }
   const seen = new Set<string>();
   for (const f of [...data.value.features].sort((a,b)=>Number(lit(b.code))-Number(lit(a.code)))) {
-    if (!f.code || !f.name || !f.center || seen.has(f.code) || places.some(p => p.place.cityCode === f.code || p.place.provinceCode === f.code && !p.place.cityCode)) continue; seen.add(f.code);
+    if (!f.code || !f.name || seen.has(f.code) || places.some(p => p.place.cityCode === f.code || p.place.provinceCode === f.code && !p.place.cityCode)) continue; seen.add(f.code);
+    const anchor = atlasLabelPoint(f, map); if (!anchor) continue;
     const text = document.createElement('span'); text.className = 'atlas-region-name'; text.textContent = shortName(f.name);
-    const marker = library.marker([f.center[1], f.center[0]], { icon: library.divIcon({ html: text, className: 'atlas-region-label', iconSize: [2, 2], iconAnchor: [1, 1] }), keyboard: true, title: f.name }).addTo(labels);
-    markName(marker, f.name + (lit(f.code) ? '，已有足迹' : '，查看地区')); marker.on('click', () => emit('region', f.code)); labelItems.push({ marker, text, kind: 'region', width: Math.min(shortName(f.name).length * 11, 200) });
+    const marker = library.marker([anchor[1], anchor[0]], { icon: library.divIcon({ html: text, className: 'atlas-region-label', iconSize: [2, 2], iconAnchor: [1, 1] }), keyboard: true, title: f.name }).addTo(labels);
+    Object.assign(marker.getElement()!.dataset, { regionCode: f.code, labelLongitude: String(anchor[0]), labelLatitude: String(anchor[1]) });
+    markName(marker, f.name + (lit(f.code) ? '，已有足迹' : '，查看地区')); marker.on('click', () => emit('region', f.code)); labelItems.push({ marker, text, kind: 'region', width: 0, height: 0 });
   }
-  layoutLabels();
+  measureLabels(); layoutLabels();
 }
 function layoutLabels() {
-  if (!map || disposed) return; const size = map.getSize(), boxes: number[][] = [];
-  for (const item of labelItems) {
-    const point = map.latLngToContainerPoint(item.marker.getLatLng()), w = item.width, h = item.kind === 'place' ? 25 : 18;
+  if (!map || disposed) return;
+  const size = map.getSize(), boxes: number[][] = [];
+  // A keyboard-focused name gets the same collision handling, rather than a CSS override.
+  const ordered = [...labelItems].sort((a, b) => Number(b.marker.getElement() === document.activeElement) - Number(a.marker.getElement() === document.activeElement));
+  // Keep names away from the actual visit dots as well as other names.
+  const dots = labelItems.filter(item => item.kind === 'place').map(item => {
+    const p = map!.latLngToContainerPoint(item.marker.getLatLng()); return [p.x - 8, p.y - 8, p.x + 8, p.y + 8];
+  });
+  const overlaps = (b: number[], a: number[], gap = 4) => b[0]! < a[2]! + gap && b[2]! > a[0]! - gap && b[1]! < a[3]! + gap && b[3]! > a[1]! - gap;
+  for (const item of ordered) {
+    const point = map.latLngToContainerPoint(item.marker.getLatLng()), w = item.width, h = item.height;
     let shown = false;
-    const offsets = item.kind === 'place' ? [[12,-h/2],[-w-12,-h/2],[12,-h-10],[-w-12,h/2+8]] : [[-w/2,-h/2],[-w/2,-h*1.6],[-w/2,h*.6]];
-    for (const [dx,dy] of offsets) {
-      const b = [point.x+dx!,point.y+dy!,point.x+dx!+w,point.y+dy!+h];
-      if (b[0]!<6 || b[2]!>size.x-6 || b[1]!<6 || b[3]!>size.y-34 || b[2]!>size.x-64 && b[1]!<(toolsOpen.value ? 200 : 64) || boxes.some(a=>b[0]!<a[2]!+3 && b[2]!>a[0]!-3 && b[1]!<a[3]!+3 && b[3]!>a[1]!-3)) continue;
-      item.text.style.left=dx!+'px';item.text.style.top=dy!+'px';boxes.push(b);shown=true;break;
+    // Administrative names stay at their geographic anchor. Reveal them as space permits;
+    // moving a province name above/below its anchor makes it look like a neighbouring region.
+    const offsets = item.kind === 'place' ? [[12, -h / 2], [-w - 12, -h / 2], [12, -h - 10], [-w - 12, 10]] : [[-w / 2, -h / 2]];
+    for (const [rawX, rawY] of offsets) {
+      const dx = Math.round(rawX!), dy = Math.round(rawY!);
+      const b = [point.x + dx, point.y + dy, point.x + dx + w, point.y + dy + h];
+      if (!w || !h || b[0]! < 6 || b[2]! > size.x - 6 || b[1]! < 6 || b[3]! > size.y - 34 || b[2]! > size.x - 64 && b[1]! < (toolsOpen.value ? 200 : 64) || boxes.some(a => overlaps(b, a)) || dots.some(a => overlaps(b, a, 2))) continue;
+      // The visit icon's top-left is seven pixels away from its geographical anchor.
+      const origin = item.kind === 'place' ? 7 : 1;
+      item.text.style.left = dx + origin + 'px'; item.text.style.top = dy + origin + 'px';
+      boxes.push(b); shown = true; break;
     }
     item.text.style.visibility = shown ? 'visible' : 'hidden';
-    if(item.kind==='region') item.marker.getElement()!.style.visibility=shown?'visible':'hidden';
+    if (item.kind === 'region') item.marker.getElement()!.style.visibility = shown ? 'visible' : 'hidden';
   }
+}
+function startLabelZoom() { if (container.value) container.value.dataset.labelsMoving = 'true'; }
+function finishLabelZoom() {
+  // Leaflet has updated all marker anchors before zoomend. Restore text after collision layout.
+  layoutLabels(); if (container.value) container.value.dataset.labelsMoving = 'false';
 }
 function fit(full = false, animate = false) {
   if (!map || !library || !regions) return;
@@ -133,7 +160,7 @@ async function load() {
     if(disposed||current!==generation)return;data.value=value;library=sdk;await nextTick();if(disposed||current!==generation)return;
     if(!map){map=library.map(container.value!,{crs:library.CRS.EPSG3857,preferCanvas:true,renderer:library.canvas({padding:.2,tolerance:5}),zoomControl:false,attributionControl:false,minZoom:-2,maxZoom:13,zoomSnap:.25,zoomDelta:.5,zoomAnimation:true,markerZoomAnimation:true,inertia:true,scrollWheelZoom:true,wheelDebounceTime:20,wheelPxPerZoomLevel:100,touchZoom:true,bounceAtZoomLimits:false,keyboard:true});
       map.setView([35,105],2,{animate:false});pins=library.layerGroup().addTo(map);labels=library.layerGroup().addTo(map);
-      map.on('dragstart zoomstart',()=>{if(!fitting){cameraTouched=true;clearTimeout(resizeTimer);clearTimeout(navigationTimer);}}); map.on('dragstart',()=>{interruptCenter();zoomAnchor=null;});map.on('zoomend',zoomEnded);map.on('moveend',layoutLabels);
+      map.on('dragstart zoomstart',()=>{if(!fitting){cameraTouched=true;clearTimeout(resizeTimer);clearTimeout(navigationTimer);}}); map.on('dragstart',()=>{interruptCenter();zoomAnchor=null;});map.on('zoomstart',startLabelZoom);map.on('zoomend',finishLabelZoom);map.on('zoomend',zoomEnded);map.on('moveend',layoutLabels);
     }
     regions?.remove();regions=library.geoJSON({type:'FeatureCollection',features:value.features.map(f=>({type:'Feature',properties:{code:f.code,name:f.name},geometry:f.geometry}))} as GeoJSON.FeatureCollection,{style:regionStyle,onEachFeature:(feature,layer)=>{const code=feature.properties?.code;if(code)layer.on('click',()=>emit('region',code));}}).addTo(map);
     visitedCount.value=value.features.filter(f=>lit(f.code)).length;map.invalidateSize({pan:false});renderLabels();
@@ -146,12 +173,12 @@ async function load() {
 function changeZoom(delta:number){interruptCenter();zoomAnchor=null;clearTimeout(resizeTimer);cameraTouched=true;if(map)map.setZoom(map.getZoom()+delta);}
 watch(()=>props.scope,()=>{if(container.value)void load();});
 watch(()=>[props.places,props.selected],()=>{regions?.setStyle(regionStyle);visitedCount.value=data.value?.features.filter(f=>lit(f.code)).length??0;renderLabels();});
-onMounted(()=>{void load();observer=new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(map&&!disposed){interruptCenter();map.invalidateSize({pan:false});if(!cameraTouched)fit();else layoutLabels();}},100);});if(container.value)observer.observe(container.value);});
-onBeforeUnmount(()=>{interruptCenter();disposed=true;generation++;observer?.disconnect();clearTimeout(resizeTimer);clearTimeout(navigationTimer);map?.remove();});
+onMounted(()=>{void load();void document.fonts.ready.then(refreshLabelMetrics);document.fonts.addEventListener('loadingdone',refreshLabelMetrics);observer=new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(map&&!disposed){interruptCenter();map.invalidateSize({pan:false});if(!cameraTouched)fit();else layoutLabels();}},100);});if(container.value)observer.observe(container.value);});
+onBeforeUnmount(()=>{interruptCenter();disposed=true;generation++;document.fonts.removeEventListener('loadingdone',refreshLabelMetrics);observer?.disconnect();clearTimeout(resizeTimer);clearTimeout(navigationTimer);map?.remove();});
 </script>
 <template>
   <div class="atlas-canvas atlas-native-canvas" :style="{ '--atlas-water': palette.water, '--atlas-label': palette.label, '--atlas-surface': palette.surface }">
-    <div ref="container" class="atlas-reference-map" role="group" aria-label="足迹地区地图" :data-zoom="zoom.toFixed(2)" :data-visited-regions="visitedCount" :data-region-count="data?.features.length ?? 0" :data-camera-moving="centering" :data-scope="scope" :data-level="(homeZoom + Math.log2(zoom)).toFixed(2)" data-projection="EPSG:3857" data-renderer="leaflet-canvas" @wheel.capture.passive="captureWheel" @touchstart.capture.passive="capturePinch" @pointerdown.capture="interruptCenter" @keydown.capture="interruptCenter(); zoomAnchor = null"></div>
+    <div ref="container" class="atlas-reference-map" role="group" aria-label="足迹地区地图" :data-zoom="zoom.toFixed(2)" :data-visited-regions="visitedCount" :data-region-count="data?.features.length ?? 0" :data-camera-moving="centering" :data-scope="scope" :data-level="(homeZoom + Math.log2(zoom)).toFixed(2)" data-projection="EPSG:3857" @focusin="layoutLabels" @focusout="layoutLabels" data-renderer="leaflet-canvas" @wheel.capture.passive="captureWheel" @touchstart.capture.passive="capturePinch" @pointerdown.capture="interruptCenter" @keydown.capture="interruptCenter(); zoomAnchor = null"></div>
     <div v-if="loading || error" class="atlas-map-status"><p :role="error ? 'alert' : 'status'">{{ error || '正在展开足迹地图…' }}</p><button v-if="error" class="text-button" @click="load">重新加载底图</button></div>
     <MapTools :disabled="loading || !data" @zoom-in="changeZoom(.5)" @zoom-out="changeZoom(-.5)" @reset="fit(false, true)" @toggle="toggleTools"/>
     <p v-if="data" class="atlas-source"><a :href="data.sourceUrl" target="_blank" rel="noreferrer">{{ data.attribution }}</a><button class="atlas-overview-button" @click="fit(true, true)">查看全貌</button></p>

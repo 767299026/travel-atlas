@@ -24,8 +24,9 @@ try {
   assert.equal(await map.getAttribute('data-projection'), 'EPSG:3857');
   const regions = (await (await context.request.get(fixture.web + '/api/v1/atlas/maps/100000')).json()).data.features;
   const anchorNames = ['新疆维吾尔自治区', '黑龙江省', '海南省'];
-  const anchors = await page.evaluate((names: string[]) => names.map(name => { const element = [...document.querySelectorAll<HTMLElement>('.atlas-region-label')].find(e => e.title === name)!; const b = element.getBoundingClientRect(), host = document.querySelector('.atlas-reference-map')!.getBoundingClientRect(); return { name, x: b.x + b.width / 2 - host.x, y: b.y + b.height / 2 - host.y }; }), anchorNames);
-  const source = anchorNames.map(name => regions.find((r: any) => r.name === name).center);
+  const anchors = await page.evaluate((names: string[]) => names.map(name => { const element = [...document.querySelectorAll<HTMLElement>('.atlas-region-label')].find(e => e.title === name)!; const b = element.getBoundingClientRect(), host = document.querySelector('.atlas-reference-map')!.getBoundingClientRect(); return { name, x: b.x + b.width / 2 - host.x, y: b.y + b.height / 2 - host.y, lng: Number(element.dataset.labelLongitude), lat: Number(element.dataset.labelLatitude) }; }), anchorNames);
+  const source = anchors.map((a: any) => [a.lng, a.lat]);
+  assert.equal(regions.length > 30, true);
   const projectedY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) * 180 / Math.PI;
   const sx = (anchors[1].x - anchors[0].x) / (source[1][0] - source[0][0]), sy = (anchors[2].y - anchors[1].y) / (projectedY(source[1][1]) - projectedY(source[2][1]));
   assert.ok(Math.abs(sx / sy - 1) < .02, 'rendered Mercator coordinates must use equal horizontal and vertical scales');
