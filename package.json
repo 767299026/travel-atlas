@@ -43,6 +43,7 @@
     "test:browser:mobile": "tsx scripts/browser-mobile-layout-check.ts",
     "test:browser:atlas-zoom": "tsx scripts/browser-atlas-zoom-check.ts",
     "test:browser:atlas-labels": "tsx scripts/browser-atlas-label-check.ts",
+    "test:browser:memories": "tsx scripts/browser-footprint-memories-check.ts",
     "test:browser:map-perf": "tsx scripts/browser-map-performance.ts"
   },
   "devDependencies": {

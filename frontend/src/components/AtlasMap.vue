@@ -2,11 +2,11 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type * as Leaflet from 'leaflet';
 import { api, ApiError, errorText } from '../api';
-import type { AtlasCity, AtlasMap } from '../../../packages/contracts/src/index.js';
+import type { AtlasCity, AtlasMap, AtlasConnection } from '../../../packages/contracts/src/index.js';
 import MapTools from './MapTools.vue';
 import { atlasLabelPoint } from '../maps/atlasLabels';
 import { atlasPalette, atlasZoomLevels, containsAtlasPoint, type AtlasCamera } from '../maps/atlasNavigation';
-const props = defineProps<{ scope: string; places: AtlasCity[]; selected: string | null; camera?: AtlasCamera | null; navigationEnabled?: boolean }>();
+const props = defineProps<{ scope: string; places: AtlasCity[]; selected: string | null; camera?: AtlasCamera | null; navigationEnabled?: boolean; connections?: AtlasConnection[]; introToken?: number }>();
 const emit = defineEmits<{ region: [code: string]; place: [key: string]; zoomScope: [code: string, camera: AtlasCamera] }>();
 const container = ref<HTMLElement>(), data = ref<AtlasMap | null>(null), loading = ref(false), error = ref(''), zoom = ref(1), visitedCount = ref(0);
 let library: typeof Leaflet, map: Leaflet.Map | undefined, regions: Leaflet.GeoJSON | undefined, pins: Leaflet.LayerGroup | undefined, labels: Leaflet.LayerGroup | undefined, generation = 0, disposed = false, homeZoom = 0, observer: ResizeObserver | undefined, resizeTimer: ReturnType<typeof setTimeout>;
@@ -22,6 +22,25 @@ let navigationTimer: ReturnType<typeof setTimeout> | undefined;
 let navigationBusy = false;
 const palette = atlasPalette, toolsOpen = ref(false), centering = ref(false);
 let finishCenter: (() => void) | undefined;
+const introPaths = ref<string[]>([]); let introTimer: ReturnType<typeof setTimeout> | undefined, playedIntro = 0;
+function clearIntro() { clearTimeout(introTimer); introPaths.value = []; }
+function playIntro() {
+  const token = props.introToken ?? 0;
+  if (!map || loading.value || error.value || !token || playedIntro === token) return;
+  clearIntro(); playedIntro = token;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const size = map.getSize();
+  introPaths.value = (props.connections ?? []).filter(c => props.scope === 'world' || countryView.value && c.from.countryCode === 'CHN' && c.to.countryCode === 'CHN').slice(0, 3).flatMap(c => {
+    if (!c.from.center || !c.to.center) return [];
+    const a = map!.latLngToContainerPoint([c.from.center[1], c.from.center[0]]), b = map!.latLngToContainerPoint([c.to.center[1], c.to.center[0]]);
+    if ([a, b].some(p => p.x < 0 || p.x > size.x || p.y < 0 || p.y > size.y - 34)) return [];
+    const dx = b.x - a.x, dy = b.y - a.y, bend = Math.min(65, Math.hypot(dx, dy) * .3), length = Math.hypot(dx, dy) || 1;
+    return [`M ${a.x} ${a.y} Q ${(a.x + b.x) / 2 + dy / length * bend} ${(a.y + b.y) / 2 - dx / length * bend} ${b.x} ${b.y}`];
+  });
+  introTimer = setTimeout(clearIntro, 1650);
+}
+watch(() => props.introToken, () => { void nextTick(playIntro); });
+watch(() => props.connections, value => { if (!value?.length) clearIntro(); });
 function interruptCenter() {
   if (!map || !centering.value) return;
   if (finishCenter) map.off('moveend', finishCenter); finishCenter = undefined;
@@ -160,7 +179,7 @@ async function load() {
     if(disposed||current!==generation)return;data.value=value;library=sdk;await nextTick();if(disposed||current!==generation)return;
     if(!map){map=library.map(container.value!,{crs:library.CRS.EPSG3857,preferCanvas:true,renderer:library.canvas({padding:.2,tolerance:5}),zoomControl:false,attributionControl:false,minZoom:-2,maxZoom:13,zoomSnap:.25,zoomDelta:.5,zoomAnimation:true,markerZoomAnimation:true,inertia:true,scrollWheelZoom:true,wheelDebounceTime:20,wheelPxPerZoomLevel:100,touchZoom:true,bounceAtZoomLimits:false,keyboard:true});
       map.setView([35,105],2,{animate:false});pins=library.layerGroup().addTo(map);labels=library.layerGroup().addTo(map);
-      map.on('dragstart zoomstart',()=>{if(!fitting){cameraTouched=true;clearTimeout(resizeTimer);clearTimeout(navigationTimer);}}); map.on('dragstart',()=>{interruptCenter();zoomAnchor=null;});map.on('zoomstart',startLabelZoom);map.on('zoomend',finishLabelZoom);map.on('zoomend',zoomEnded);map.on('moveend',layoutLabels);
+      map.on('movestart',clearIntro);map.on('dragstart zoomstart',()=>{if(!fitting){cameraTouched=true;clearTimeout(resizeTimer);clearTimeout(navigationTimer);}}); map.on('dragstart',()=>{interruptCenter();zoomAnchor=null;});map.on('zoomstart',startLabelZoom);map.on('zoomend',finishLabelZoom);map.on('zoomend',zoomEnded);map.on('moveend',layoutLabels);
     }
     regions?.remove();regions=library.geoJSON({type:'FeatureCollection',features:value.features.map(f=>({type:'Feature',properties:{code:f.code,name:f.name},geometry:f.geometry}))} as GeoJSON.FeatureCollection,{style:regionStyle,onEachFeature:(feature,layer)=>{const code=feature.properties?.code;if(code)layer.on('click',()=>emit('region',code));}}).addTo(map);
     visitedCount.value=value.features.filter(f=>lit(f.code)).length;map.invalidateSize({pan:false});renderLabels();
@@ -168,18 +187,19 @@ async function load() {
       fitting = true; map.setView([preserve.center[1], preserve.center[0]], preserve.zoom, { animate: false });
       homeZoom = map.getZoom(); lastZoom = homeZoom; zoom.value = 1; cameraTouched = true; fitting = false; layoutLabels();
     } else fit();
-  }catch(e){if(!disposed&&current===generation)error.value=e instanceof ApiError ? errorText(e) : '地区地图暂时无法显示，记录仍保留，请重试。';}finally{if(current===generation){loading.value=false; navigationBusy = false;}}
+  }catch(e){if(!disposed&&current===generation)error.value=e instanceof ApiError ? errorText(e) : '地区地图暂时无法显示，记录仍保留，请重试。';}finally{if(current===generation){loading.value=false; navigationBusy = false; void nextTick(playIntro);}}
 }
 function changeZoom(delta:number){interruptCenter();zoomAnchor=null;clearTimeout(resizeTimer);cameraTouched=true;if(map)map.setZoom(map.getZoom()+delta);}
 watch(()=>props.scope,()=>{if(container.value)void load();});
 watch(()=>[props.places,props.selected],()=>{regions?.setStyle(regionStyle);visitedCount.value=data.value?.features.filter(f=>lit(f.code)).length??0;renderLabels();});
 onMounted(()=>{void load();void document.fonts.ready.then(refreshLabelMetrics);document.fonts.addEventListener('loadingdone',refreshLabelMetrics);observer=new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(map&&!disposed){interruptCenter();map.invalidateSize({pan:false});if(!cameraTouched)fit();else layoutLabels();}},100);});if(container.value)observer.observe(container.value);});
-onBeforeUnmount(()=>{interruptCenter();disposed=true;generation++;document.fonts.removeEventListener('loadingdone',refreshLabelMetrics);observer?.disconnect();clearTimeout(resizeTimer);clearTimeout(navigationTimer);map?.remove();});
+onBeforeUnmount(()=>{clearIntro();interruptCenter();disposed=true;generation++;document.fonts.removeEventListener('loadingdone',refreshLabelMetrics);observer?.disconnect();clearTimeout(resizeTimer);clearTimeout(navigationTimer);map?.remove();});
 </script>
 <template>
   <div class="atlas-canvas atlas-native-canvas" :style="{ '--atlas-water': palette.water, '--atlas-label': palette.label, '--atlas-surface': palette.surface }">
-    <div ref="container" class="atlas-reference-map" role="group" aria-label="足迹地区地图" :data-zoom="zoom.toFixed(2)" :data-visited-regions="visitedCount" :data-region-count="data?.features.length ?? 0" :data-camera-moving="centering" :data-scope="scope" :data-level="(homeZoom + Math.log2(zoom)).toFixed(2)" data-projection="EPSG:3857" @focusin="layoutLabels" @focusout="layoutLabels" data-renderer="leaflet-canvas" @wheel.capture.passive="captureWheel" @touchstart.capture.passive="capturePinch" @pointerdown.capture="interruptCenter" @keydown.capture="interruptCenter(); zoomAnchor = null"></div>
+    <div ref="container" class="atlas-reference-map" role="group" aria-label="足迹地区地图" :data-zoom="zoom.toFixed(2)" :data-visited-regions="visitedCount" :data-region-count="data?.features.length ?? 0" :data-camera-moving="centering" :data-scope="scope" :data-level="(homeZoom + Math.log2(zoom)).toFixed(2)" data-projection="EPSG:3857" @focusin="layoutLabels" @focusout="layoutLabels" data-renderer="leaflet-canvas" @wheel.capture.passive="clearIntro(); captureWheel($event)" @touchstart.capture.passive="capturePinch" @pointerdown.capture="clearIntro(); interruptCenter()" @keydown.capture="clearIntro(); interruptCenter(); zoomAnchor = null"></div>
     <div v-if="loading || error" class="atlas-map-status"><p :role="error ? 'alert' : 'status'">{{ error || '正在展开足迹地图…' }}</p><button v-if="error" class="text-button" @click="load">重新加载底图</button></div>
+    <svg v-if="introPaths.length" class="atlas-journey-intro" aria-hidden="true"><path v-for="(d, i) in introPaths" :key="i" :d="d" pathLength="1" :style="{ animationDelay: i * 80 + 'ms' }"/></svg>
     <MapTools :disabled="loading || !data" @zoom-in="changeZoom(.5)" @zoom-out="changeZoom(-.5)" @reset="fit(false, true)" @toggle="toggleTools"/>
     <p v-if="data" class="atlas-source"><a :href="data.sourceUrl" target="_blank" rel="noreferrer">{{ data.attribution }}</a><button class="atlas-overview-button" @click="fit(true, true)">查看全貌</button></p>
   </div>

@@ -212,3 +212,7 @@ M3 的 `npm run test:browser:m3` 与真实服务 `npm run test:browser:amap` 复
 ## 图鉴名称布局专项（2026-10-23）
 
 图鉴文字采用多边形内部稳定锚点、实际尺寸碰撞判断与缩放结束后恢复。`npm run test:browser:atlas-labels` 使用独立数据库前缀，和其他浏览器脚本共用验证端口，必须顺序执行；支持 `FRONTEND_TEST_DIST` 暂存构建。两轮视觉审核、文字原点修正和真实域名证据见 [手机地图专题](mobile-map-rendering.md)。
+
+## 足迹卡片、路线联动与年度回顾（2026-10-23）
+
+新增 `npm run test:browser:memories`，复用独立前缀表、媒体与浏览器端口；与其他浏览器夹具顺序运行。覆盖照片来源、直接城市进入、路径／到访双向选择、尺寸变化保持相机、年份、跨城入场及中断／减少动态效果。API 增量均为只读响应，不需要表迁移。详细设计、自审与真实域名截图见 [足迹参考及实现记录](amap-footprints-reference.md)。

@@ -10,13 +10,13 @@ class MapDouble {
  setZoom(z){this.zoom=z;this.handlers.zoomend?.();}
  getZoom(){return this.zoom;}
  getCenter(){return this.center;}
- getFitZoomAndCenterByOverlays(){return [13,[114.3,30.6]];}
+ getFitZoomAndCenterByOverlays(items){return [items?.length===1?15:13,[114.3,30.6]];}
  setZoomAndCenter(zoom,center,immediately,duration){this.cameraCommands.push({zoom,center,immediately,duration});this.center=center;this.setZoom(zoom);this.handlers.moveend?.();}
  setFitView(){this.setZoom(13);}
  resize(){}
  destroy(){this.element.replaceChildren();}
 }
 class Marker {constructor(options){this.options=options;}}
-class Polyline {constructor(options){this.options=options;this.handlers={};}on(name,fn){this.handlers[name]=fn;}}
+class Polyline {constructor(options){this.options=options;this.handlers={};}on(name,fn){this.handlers[name]=fn;}setOptions(options){Object.assign(this.options,options);}}
 window.AMap={Map:MapDouble,Marker,Polyline,convertFrom(points,type,done){window.fixtureConversions.push({points:JSON.parse(JSON.stringify(points)),type});const locations=points.map(([lng,lat])=>({getLng:()=>lng+.006,getLat:()=>lat+.003}));points.splice(0,points.length,...locations);done('complete',{locations});}};
 `;
