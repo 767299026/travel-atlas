@@ -1,3 +1,4 @@
+import { openMapTools, waitForMapCenter } from './lib/map-tools.js';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -40,32 +41,56 @@ try {
     const result = await page.evaluate(`(city => {
       const rect = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width, height: r.height }; };
       const header = rect('.atlas-map-heading'), map = rect(city ? '.city-online-map' : '.atlas-reference-map'), source = rect(city ? '.city-layer-controls' : '.atlas-source'), summary = rect('.atlas-map-bottom'), drawer = rect('.atlas-memory'), nav = rect('.bottom-nav');
-      const buttons = [...document.querySelectorAll('.atlas-map-tools>button')].map(b => { const r = b.getBoundingClientRect(); return { y: r.y, bottom: r.bottom, width: r.width, height: r.height, receivesPointer: document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest('button') === b, radius: getComputedStyle(b).borderRadius }; });
-      return { header, map, source, summary, drawer, nav, buttons, overflow: document.documentElement.scrollWidth > innerWidth, viewportHeight: visualViewport?.height ?? innerHeight };
+      const buttons = [...document.querySelectorAll('.atlas-map-tools button')].filter(b => !b.closest('[inert]')).map(b => { const r = b.getBoundingClientRect(); return { y: r.y, bottom: r.bottom, width: r.width, height: r.height, receivesPointer: document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest('button') === b, radius: getComputedStyle(b).borderRadius }; });
+      return { header, map, source, summary, drawer, nav, buttons, toolsExpanded: document.querySelector('.atlas-tools-toggle')?.getAttribute('aria-expanded') === 'true', overflow: document.documentElement.scrollWidth > innerWidth, viewportHeight: visualViewport?.height ?? innerHeight };
     })(${JSON.stringify(city)})`);
 
     assert.equal(result.overflow, false, label); assert.ok(result.header.bottom <= result.map.y + 1, label + ' heading'); if (city) { assert.ok(result.map.bottom <= result.source.y + 1, label + ' map/source'); assert.ok(result.source.bottom <= result.summary.y + 1, label + ' source/summary'); } else { assert.ok(result.source.y >= result.map.y, label + ' attribution inside map'); assert.ok(result.source.bottom <= result.map.bottom + 1, label + ' attribution inside map bottom'); assert.ok(result.map.bottom <= result.summary.y + 1, label + ' map/summary'); } assert.ok(result.summary.bottom <= result.drawer.y + 1, label + ' summary/drawer'); assert.ok(result.drawer.bottom <= result.nav.y + 1, label + ' drawer/nav'); assert.ok(result.nav.bottom <= result.viewportHeight + 1, label + ' viewport'); assert.ok(result.map.height >= 190, label + ' map height'); assert.equal(result.drawer.height, 56, label + ' single-row drawer'); assert.equal(await page.locator('.atlas-drawer-scroll').count(), 0, label + ' hidden drawer content'); if (label === 'province-393x775') assert.ok(result.map.height >= 410, 'map reclaims search and drawer space');
-    assert.equal(result.buttons.length, 3); for (let i=0;i<3;i++) { const b=result.buttons[i]!; assert.equal(b.width,44); assert.equal(b.height,44); assert.equal(b.radius,'0px'); assert.equal(b.receivesPointer,true,label+' toolbar '+i); if(i) assert.ok(result.buttons[i-1]!.bottom<=b.y+.5,label+' separate toolbar buttons'); }
+    assert.equal(result.buttons.length, result.toolsExpanded ? 4 : 1); for (let i=0;i<result.buttons.length;i++) { const b=result.buttons[i]!; assert.equal(b.width,44); assert.equal(b.height,44); assert.equal(b.radius,'0px'); assert.equal(b.receivesPointer,true,label+' toolbar '+i); if(i) assert.ok(result.buttons[i-1]!.bottom<=b.y+.5,label+' separate toolbar buttons'); }
     await page.screenshot({ path: output+'/'+label+'.png' }); await writeFile(output+'/'+label+'.json',JSON.stringify(result,null,2)); cases.push(label);
   };
   for (const [width,height] of [[393,775],[393,660],[393,844],[360,740],[320,640],[393,560]]) { await page.setViewportSize({width,height}); await audit('province-'+width+'x'+height); }
   await page.setViewportSize({width:393,height:775}); await page.waitForTimeout(250); assert.equal(await page.locator('.atlas-region-name').filter({hasText:'武汉市'}).count(),0); assert.equal(await page.locator('.pin-label').filter({hasText:'武汉市'}).count(),1); cases.push('province-city-label-not-duplicated');
-  const svg=page.getByRole('group',{name:'足迹地区地图',exact:true}); await page.getByRole('button',{name:'放大足迹地图',exact:true}).tap(); await page.waitForFunction(()=>Number(document.querySelector('[aria-label="足迹地区地图"]')?.getAttribute('data-zoom'))>1); await page.getByRole('button',{name:'缩小足迹地图',exact:true}).tap(); await page.getByRole('button',{name:'重置足迹地图',exact:true}).tap(); assert.equal(await svg.getAttribute('data-zoom'),'1.00'); cases.push('three-toolbar-actions-work-by-touch');
+  assert.equal(await page.getByRole('button', { name: '放大足迹地图', exact: true }).count(), 0);
+  await openMapTools(page); await audit('province-tools-expanded-393x775');
+  await page.getByRole('button', { name: '收起地图工具', exact: true }).tap();
+  assert.equal(await page.getByRole('button', { name: '放大足迹地图', exact: true }).count(), 0);
+  await openMapTools(page); await page.keyboard.press('Escape'); assert.equal(await page.getByRole('button', { name: '展开地图工具', exact: true }).evaluate((e: HTMLElement) => document.activeElement === e), true);
+  cases.push('map-tools-default-collapsed-expand-collapse-and-escape-focus');
+  const svg=page.getByRole('group',{name:'足迹地区地图',exact:true}); await openMapTools(page); await page.getByRole('button',{name:'放大足迹地图',exact:true}).tap(); await page.waitForFunction(()=>Number(document.querySelector('[aria-label="足迹地区地图"]')?.getAttribute('data-zoom'))>1); await openMapTools(page); await page.getByRole('button',{name:'缩小足迹地图',exact:true}).tap(); await openMapTools(page); await page.getByRole('button',{name:'重置足迹地图',exact:true}).tap(); await waitForMapCenter(page); assert.equal(await svg.getAttribute('data-zoom'),'1.00'); cases.push('three-toolbar-actions-work-by-touch');
   const cdp=await context.newCDPSession(page), area=(await svg.boundingBox())!, cx=area.x+area.width*.38, cy=area.y+area.height*.5;
   const point=(x:number,id:number)=>({x,y:cy,id,radiusX:2,radiusY:2}); await page.waitForTimeout(350); const beforePinch=Number(await svg.getAttribute('data-zoom'));
   await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[point(cx-20,0),point(cx+20,1)]});
   for(let i=1;i<=8;i++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[point(cx-20-i*4,0),point(cx+20+i*4,1)]});
   await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
   await page.waitForFunction((z:number)=>Number(document.querySelector('[aria-label="足迹地区地图"]')?.getAttribute('data-zoom'))>z,beforePinch); cases.push('native-two-finger-pinch-zooms-reference-map');
-  await page.getByRole('button',{name:'重置足迹地图',exact:true}).tap();
+  await openMapTools(page); await page.getByRole('button',{name:'重置足迹地图',exact:true}).tap(); await waitForMapCenter(page);
   await page.waitForTimeout(350); const pane=page.locator('.atlas-reference-map .leaflet-map-pane'), beforePan=await pane.getAttribute('style');
   await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[point(cx,0)]});
   for(let i=1;i<=8;i++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[point(cx+i*6,0)]});
   await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]}); await page.waitForTimeout(300);assert.notEqual(await pane.getAttribute('style'),beforePan);cases.push('native-single-finger-pan-moves-map-pane');
-  await page.getByRole('button',{name:'重置足迹地图',exact:true}).tap();
+  await openMapTools(page);
+  await page.evaluate(`(() => { window.centerAudit = { active: true, started: performance.now(), frames: [] }; const tick = () => { const a = window.centerAudit; if (!a.active) return; a.frames.push({ moving: document.querySelector('.atlas-reference-map').dataset.cameraMoving, transform: document.querySelector('.leaflet-map-pane').style.transform + document.querySelector('.atlas-reference-map canvas').style.transform }); requestAnimationFrame(tick); }; requestAnimationFrame(tick); })()`);
+  await page.getByRole('button',{name:'重置足迹地图',exact:true}).tap(); await waitForMapCenter(page);
+  const animation = await page.evaluate(() => { const a = (window as any).centerAudit; a.active = false; return { elapsed: performance.now() - a.started, movingFrames: a.frames.filter((f: any) => f.moving === 'true').length, distinctTransforms: new Set(a.frames.map((f: any) => f.transform)).size }; });
+  assert.ok(animation.movingFrames > 3, 'reference recenter must render intermediate frames'); assert.ok(animation.distinctTransforms > 3, 'reference recenter must visibly move'); assert.ok(animation.elapsed >= 450 && animation.elapsed < 2000); assert.equal(await svg.getAttribute('data-scope'), '420000');
+  await writeFile(output + '/centering-animation.json', JSON.stringify(animation, null, 2)); cases.push('reference-recenter-renders-intermediate-motion-without-switching-scope');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[point(cx,0)]});
+  for(let i=1;i<=5;i++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[point(cx+i*8,0)]});
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]}); await page.waitForTimeout(250);
+  await openMapTools(page); await page.getByRole('button',{name:'重置足迹地图',exact:true}).tap(); assert.equal(await svg.getAttribute('data-camera-moving'), 'false'); assert.equal(await svg.getAttribute('data-zoom'), '1.00');
+  await page.emulateMedia({ reducedMotion: 'no-preference' }); cases.push('reduced-motion-preference-uses-immediate-reference-center');
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[point(cx,0)]});
+  for(let i=1;i<=5;i++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[point(cx+i*8,0)]});
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]}); await page.waitForTimeout(250);
+  await openMapTools(page); await page.getByRole('button',{name:'重置足迹地图',exact:true}).tap(); await page.waitForTimeout(100); assert.equal(await svg.getAttribute('data-camera-moving'), 'true');
+  await page.getByRole('button',{name:'放大足迹地图',exact:true}).tap(); await waitForMapCenter(page); await page.waitForTimeout(300); const interruptedZoom = await svg.getAttribute('data-level'); await page.waitForTimeout(600); assert.equal(await svg.getAttribute('data-level'), interruptedZoom); cases.push('new-map-action-interrupts-centering-without-late-camera-snap');
+  await page.getByRole('button',{name:'重置足迹地图',exact:true}).tap(); await waitForMapCenter(page);
   await page.locator('.atlas-drawer-toggle').tap(); await page.getByRole('button',{name:/武汉市.*4 条到访/}).tap(); await page.getByRole('button',{name:'进入城市地图',exact:true}).tap(); await page.locator('.city-footprint-canvas[data-points="3"]').waitFor();
   for (const [width,height] of [[393,775],[393,660],[320,640]]) { await page.setViewportSize({width,height}); await audit('city-'+width+'x'+height,true); }
-  await page.getByRole('button',{name:'放大城市地图',exact:true}).tap(); await page.getByRole('button',{name:'缩小城市地图',exact:true}).tap(); await page.getByRole('button',{name:'查看全部城市足迹',exact:true}).tap(); cases.push('city-toolbar-actions-work-by-touch');
+  await openMapTools(page); await page.getByRole('button',{name:'放大城市地图',exact:true}).tap(); await openMapTools(page); await page.getByRole('button',{name:'缩小城市地图',exact:true}).tap(); await openMapTools(page); await page.getByRole('button',{name:'查看全部城市足迹',exact:true}).tap(); await waitForMapCenter(page); const cityAnimation = await page.evaluate(() => (window as any).fixtureMaps.at(-1).cameraCommands.at(-1)); assert.equal(cityAnimation.immediately, false); assert.equal(cityAnimation.duration, 650); cases.push('city-toolbar-actions-and-supplier-animation-request');
+  await page.getByRole('button', { name: '收起地图工具', exact: true }).tap();
   await page.setViewportSize({width:1280,height:900}); await page.waitForTimeout(200); assert.equal(await page.locator('.atlas-memory').evaluate((e:HTMLElement)=>getComputedStyle(e).position),'relative'); await page.screenshot({path:output+'/desktop-city.png'}); cases.push('desktop-sidebar-remains-separate');
   assert.deepEqual(errors,[]); await writeFile(output+'/result.json',JSON.stringify({passed:true,cases,errors,scope:'Android Chromium touch emulation; viewport inferred from supplied screenshot, not physical Xiaomi hardware'},null,2)); console.log('手机布局验证通过：'+cases.length+' 组。');
 } catch(e) { console.error(e); console.error({cases,errors}); await page?.screenshot({path:output+'/failure.png'}).catch(()=>{}); process.exitCode=1; }

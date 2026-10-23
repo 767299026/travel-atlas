@@ -1,3 +1,4 @@
+import { openMapTools, waitForMapCenter } from './lib/map-tools.js';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { eq, getTableName } from 'drizzle-orm';
@@ -27,17 +28,17 @@ try {
   assert.ok(Number(await map.getAttribute('data-level')) >= 5, 'keep the zoom instead of refitting province bounds');
   assert.equal(await page.locator('.atlas-drawer-scroll').count(), 0); await page.screenshot({ path: output + '/wheel-enters-hubei.png' }); cases.push('wheel-focus-enters-hubei-without-click-or-camera-reset');
   const before = Number(await map.getAttribute('data-level'));
-  await page.getByRole('button', { name: '缩小足迹地图', exact: true }).click(); await page.waitForTimeout(600); assert.equal(await scope(), '420000');
-  await page.getByRole('button', { name: '放大足迹地图', exact: true }).click(); await page.waitForTimeout(600); assert.equal(await scope(), '420000'); assert.equal(Number(await map.getAttribute('data-level')), before); cases.push('separate-thresholds-prevent-province-oscillation');
+  await openMapTools(page); await page.getByRole('button', { name: '缩小足迹地图', exact: true }).click(); await page.waitForTimeout(600); assert.equal(await scope(), '420000');
+  await openMapTools(page); await page.getByRole('button', { name: '放大足迹地图', exact: true }).click(); await page.waitForTimeout(600); assert.equal(await scope(), '420000'); assert.equal(Number(await map.getAttribute('data-level')), before); cases.push('separate-thresholds-prevent-province-oscillation');
   for (let i = 0; i < 6 && await page.locator('.city-footprint-canvas').count() === 0; i++) await zoomAtWuhan();
   await page.locator('.city-footprint-canvas[data-city="420100"][data-points="3"]').waitFor(); await page.waitForTimeout(500);
   assert.equal(await page.locator('.city-footprint-canvas').getAttribute('data-zoom'), '10', 'city entry shows city overview rather than jumping to a cluster of visits');
   assert.equal(await page.locator('.atlas-drawer-scroll').count(), 0); await page.screenshot({ path: output + '/wheel-enters-wuhan.png' }); cases.push('continued-wheel-enters-city-2d-with-footprints-and-collapsed-drawer');
-  for (let i = 0; i < 3; i++) { await page.getByRole('button', { name: '缩小城市地图', exact: true }).click(); await page.waitForTimeout(250); }
+  for (let i = 0; i < 3; i++) { await openMapTools(page); await page.getByRole('button', { name: '缩小城市地图', exact: true }).click(); await page.waitForTimeout(250); }
   await map.waitFor(); await settle(); assert.equal(await scope(), '420000'); assert.equal(await map.getAttribute('data-level'), '5.50'); cases.push('city-zoom-out-returns-to-province-once');
-  for (let i = 0; i < 3; i++) { await page.getByRole('button', { name: '缩小足迹地图', exact: true }).click(); await page.waitForTimeout(500); }
+  for (let i = 0; i < 3; i++) { await openMapTools(page); await page.getByRole('button', { name: '缩小足迹地图', exact: true }).click(); await page.waitForTimeout(500); }
   await settle(); assert.equal(await scope(), '100000'); cases.push('province-zoom-out-returns-to-national');
-  await page.getByRole('button', { name: '重置足迹地图', exact: true }).click(); await page.waitForTimeout(600); assert.equal(await scope(), '100000');
+  await openMapTools(page); await page.getByRole('button', { name: '重置足迹地图', exact: true }).click(); await waitForMapCenter(page); await page.waitForTimeout(600); assert.equal(await scope(), '100000');
   await page.setViewportSize({ width: 360, height: 740 }); await page.waitForTimeout(600); assert.equal(await scope(), '100000'); await page.setViewportSize({ width: 393, height: 775 }); await page.waitForTimeout(400); cases.push('reset-and-resize-do-not-drill');
   const atlas = (await (await context.request.get(fixture.web + '/api/v1/atlas')).json()).data, wuhan = atlas.places.find((p: any) => p.place.cityCode === '420100').place.center;
   const dot = await marker().boundingBox(), scale = 512 * 2 ** Number(await map.getAttribute('data-level')) / 360;
@@ -46,13 +47,13 @@ try {
   await page.mouse.move(ocean.x, ocean.y);
   for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, -80); await page.waitForTimeout(500); }
   assert.equal(await scope(), '100000'); assert.ok(Number(await map.getAttribute('data-level')) >= 5); cases.push('zoom-over-water-does-not-pick-nearest-province');
-  await page.getByRole('button', { name: '重置足迹地图', exact: true }).click();
+  await openMapTools(page); await page.getByRole('button', { name: '重置足迹地图', exact: true }).click(); await waitForMapCenter(page);
   await page.getByRole('button', { name: '世界', exact: true }).click(); await settle();
   for (let i = 0; i < 8 && await scope() === 'world'; i++) {
     const b = await page.getByRole('button', { name: '中国，已有足迹', exact: true }).boundingBox(); assert.ok(b); await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.wheel(0, -80); await page.waitForTimeout(500);
   }
   await settle(); assert.equal(await scope(), '100000'); cases.push('world-zoom-over-china-enters-national');
-  for (let i = 0; i < 8 && await scope() === '100000'; i++) { await page.getByRole('button', { name: '缩小足迹地图', exact: true }).click(); await page.waitForTimeout(500); }
+  for (let i = 0; i < 8 && await scope() === '100000'; i++) { await openMapTools(page); await page.getByRole('button', { name: '缩小足迹地图', exact: true }).click(); await page.waitForTimeout(500); }
   await settle(); assert.equal(await scope(), 'world'); cases.push('national-zoom-out-returns-world');
   await page.getByRole('button', { name: '中国', exact: true }).click(); await settle();
   while (Number(await map.getAttribute('data-level')) < 3.75) await zoomAtWuhan();
