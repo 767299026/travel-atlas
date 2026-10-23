@@ -17,3 +17,6 @@ uploads/
 backups/
 *.log
 .DS_Store
+
+# Private files supplied for local review
+tmp/

@@ -1,85 +1,90 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { api, errorText } from '../api';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import type * as Leaflet from 'leaflet';
+import { api, ApiError, errorText } from '../api';
 import type { AtlasCity, AtlasMap, AtlasGeometry } from '../../../packages/contracts/src/index.js';
 import AtlasIcon from './AtlasIcon.vue';
 const props = defineProps<{ scope: string; places: AtlasCity[]; selected: string | null }>();
 const emit = defineEmits<{ region: [code: string]; place: [key: string] }>();
-const canvas = ref<HTMLElement>(), svg = ref<SVGSVGElement>(), units = ref(1), data = ref<AtlasMap | null>(null), loading = ref(false), error = ref(''), zoom = ref(1), pan = ref([0, 0]);
-let dragged = false, generation = 0, observer: ResizeObserver | undefined;
-let start: { x: number; y: number; pan: number[] } | null = null;
-function rings(geometry: AtlasGeometry['geometry']): number[][][] { const c = geometry.coordinates as any; return geometry.type === 'Polygon' || geometry.type === 'MultiLineString' ? c : geometry.type === 'MultiPolygon' ? c.flat() : geometry.type === 'LineString' ? [c] : []; }
-const features = computed(() => data.value?.features ?? []);
-const project = computed(() => {
-  let bounds = [-180, -58, 180, 85]; const ratio = props.scope === 'world' ? 1 : .83;
-  if (props.scope !== 'world' && features.value.length) { const points = features.value.flatMap(f => rings(f.geometry).flat()); bounds = [Infinity, Infinity, -Infinity, -Infinity]; for (const p of points) { bounds[0] = Math.min(bounds[0]!, p[0]!); bounds[1] = Math.min(bounds[1]!, p[1]!); bounds[2] = Math.max(bounds[2]!, p[0]!); bounds[3] = Math.max(bounds[3]!, p[1]!); } }
-  const [x1, y1, x2, y2] = bounds as [number, number, number, number], scale = Math.min(740 / Math.max((x2 - x1) * ratio, .01), 420 / Math.max(y2 - y1, .01)) * zoom.value;
-  return (p: number[]) => [(p[0]! - (x1 + x2) / 2) * ratio * scale + 400 + pan.value[0]!, ((y1 + y2) / 2 - p[1]!) * scale + 270 + pan.value[1]!];
-});
-const paths = computed(() => features.value.map(f => ({ ...f, path: rings(f.geometry).map(ring => ring.map((p, i) => { const xy = project.value(p); return `${i ? 'L' : 'M'}${xy[0]!.toFixed(2)},${xy[1]!.toFixed(2)}`; }).join('') + (f.geometry.type.includes('Polygon') ? 'Z' : '')).join('') })));
-const pinFont = computed(() => Math.max(17, 12 * units.value));
-const pins = computed(() => {
-  const list = props.places.filter(p => p.place.center && (props.scope === '100000' ? p.place.countryCode === 'CHN' : props.scope === 'world' ? false : p.place.provinceCode === props.scope || p.place.cityCode === props.scope)).map(p => ({ ...p, point: project.value(p.place.center!) })).sort((a, b) => Number(b.place.key === props.selected) - Number(a.place.key === props.selected) || b.records - a.records);
-  const boxes: number[][] = [], h = pinFont.value * 1.6, gap = pinFont.value * .65;
-  return list.map(p => {
-    const label = p.place.name.length > 8 ? p.place.name.slice(0, 8) + '…' : p.place.name, labelWidth = label.length * pinFont.value;
-    let offset = [gap, 0], box = [0, 0, 0, 0], showLabel = false;
-    for (const [dx, dy] of [[gap, 0], [-labelWidth - gap, 0], [gap, -h], [-labelWidth - gap, h], [gap, h * 2], [-labelWidth - gap, -h * 2]]) {
-      const x = p.point[0]! + dx!, y = p.point[1]! + dy!, candidate = [x - 4, y - h / 2, x + labelWidth + 4, y + h / 2];
-      if (candidate[0]! < 6 || candidate[2]! > 794 || candidate[1]! < 6 || candidate[3]! > 554 || boxes.some(b => candidate[0]! < b[2]! && candidate[2]! > b[0]! && candidate[1]! < b[3]! && candidate[3]! > b[1]!)) continue;
-      offset = [dx!, dy!]; box = candidate; showLabel = true; boxes.push(candidate); break;
-    }
-    return { ...p, label, labelWidth, offset, box, showLabel };
-  });
-});
-function lit(code: string) { return props.places.some(p => p.records > 0 && (props.scope === 'world' ? p.place.countryCode === code : props.scope === '100000' ? p.place.provinceCode === code : p.place.cityCode === code || p.place.provinceCode === p.place.cityCode && p.place.provinceCode === props.scope)); }
-const fontSize = computed(() => Math.max(15, 11 * units.value));
-const labels = computed(() => {
-  const boxes: number[][] = [], result: { code: string; name: string; x: number; y: number; center: number[]; moved: boolean }[] = [], seen = new Set<string>();
-  for (const f of [...features.value].sort((a, b) => Number(lit(b.code)) - Number(lit(a.code)))) {
-    if (!f.code || !f.name || !f.center || seen.has(f.code)) continue; seen.add(f.code);
-    const center = project.value(f.center), name = props.scope === '100000' ? f.name.replace(/壮族自治区|回族自治区|维吾尔自治区|特别行政区|自治区|省|市$/g, '') : f.name;
-    const w = Math.min(name.length, 12) * fontSize.value, h = fontSize.value * 1.4;
-    if (center[0]! < 10 || center[0]! > 790 || center[1]! < 20 || center[1]! > 540) continue;
-    for (const [dx, dy] of [[0, 0], [0, -h], [0, h], [-w / 2, h], [w / 2, -h]]) {
-      const x = Math.max(w / 2 + 8, Math.min(792 - w / 2, center[0]! + dx!)), y = center[1]! + dy!, box = [x - w / 2 - 4, y - h / 2, x + w / 2 + 4, y + h / 2];
-      if (box[1]! < 10 || box[3]! > 550 || boxes.some(b => box[0]! < b[2]! && box[2]! > b[0]! && box[1]! < b[3]! && box[3]! > b[1]!)) continue;
-      // Leave footprint labels unobscured; region labels reappear when zooming in.
-      if (pins.value.some(p => p.showLabel && box[0]! < p.box[2]! && box[2]! > p.box[0]! && box[1]! < p.box[3]! && box[3]! > p.box[1]!)) continue;
-      boxes.push(box); result.push({ code: f.code, name, x, y, center, moved: !!dx || !!dy }); break;
-    }
+const container = ref<HTMLElement>(), data = ref<AtlasMap | null>(null), loading = ref(false), error = ref(''), zoom = ref(1), visitedCount = ref(0);
+let library: typeof Leaflet, map: Leaflet.Map | undefined, regions: Leaflet.GeoJSON | undefined, pins: Leaflet.LayerGroup | undefined, labels: Leaflet.LayerGroup | undefined, generation = 0, disposed = false, homeZoom = 0, observer: ResizeObserver | undefined, resizeTimer: ReturnType<typeof setTimeout>;
+type Label = { marker: Leaflet.Marker; text: HTMLElement; kind: 'place' | 'region'; width: number };
+let labelItems: Label[] = [];
+let fitting=false,cameraTouched=false;
+const countryView = computed(() => props.scope === '100000');
+const shortName = (name: string) => countryView.value ? name.replace(/壮族自治区|回族自治区|维吾尔自治区|特别行政区|自治区|省|市$/g, '') : name;
+const scopePlaces = () => props.places.filter(p => p.place.center && (props.scope === 'world' ? false : countryView.value ? p.place.countryCode === 'CHN' : p.place.provinceCode === props.scope || p.place.cityCode === props.scope));
+function lit(code: string) { return props.places.some(p => p.records > 0 && (props.scope === 'world' ? p.place.countryCode === code : countryView.value ? p.place.provinceCode === code : p.place.cityCode === code || p.place.provinceCode === p.place.cityCode && p.place.provinceCode === props.scope)); }
+function regionStyle(feature?: GeoJSON.Feature): Leaflet.PolylineOptions { return { color: '#f7faf7', weight: 1, fillColor: lit(feature?.properties?.code ?? '') ? '#a9c6aa' : '#dbe4d9', fillOpacity: 1, opacity: 1, smoothFactor: 1.2 }; }
+function markName(marker: Leaflet.Marker, text: string) { const element = marker.getElement(); if (element) { element.setAttribute('aria-label', text); element.setAttribute('role', 'button'); } }
+function renderLabels() {
+  if (!map || !pins || !labels || !library || !data.value) return; pins.clearLayers(); labels.clearLayers(); labelItems = [];
+  const places = scopePlaces().sort((a, b) => Number(b.place.key === props.selected) - Number(a.place.key === props.selected) || b.records - a.records);
+  for (const p of places) {
+    const content = document.createElement('span'); content.className = 'atlas-place-content';
+    const dot = document.createElement('span'); dot.className = 'pin-core'; const text = document.createElement('span'); text.className = 'pin-label'; text.textContent = p.place.name; content.append(dot, text);
+    const marker = library.marker([p.place.center![1], p.place.center![0]], { icon: library.divIcon({ html: content, className: 'atlas-place-marker' + (p.records ? '' : ' wish') + (props.selected === p.place.key ? ' selected' : ''), iconSize: [14, 14], iconAnchor: [7, 7] }), keyboard: true, title: p.place.name, zIndexOffset: 200 }).addTo(pins);
+    markName(marker, p.place.name + (p.records ? '，已到访' : '，想去')); marker.on('click', () => emit('place', p.place.key)); labelItems.push({ marker, text, kind: 'place', width: Math.min(p.place.name.length * 12, 168) });
   }
-  return result;
-});
-function region(code: string, keyboard = false) { if ((!dragged || keyboard) && code) emit('region', code); }
-function pick(key: string, keyboard = false) { if (!dragged || keyboard) emit('place', key); }
-async function load() { const current = ++generation; loading.value = true; error.value = ''; data.value = null; reset(); try { const value = await api<AtlasMap>('/atlas/maps/' + props.scope); if (current === generation) data.value = value; } catch (e) { if (current === generation) error.value = errorText(e); } finally { if (current === generation) loading.value = false; } }
-watch(() => props.scope, load, { immediate: true });
-function local(x: number, y: number) { const matrix = svg.value?.getScreenCTM(); return matrix ? new DOMPoint(x, y).matrixTransform(matrix.inverse()) : new DOMPoint(400, 280); }
-function pointerDown(e: PointerEvent) { if (e.button !== 0) return; dragged = false; const p = local(e.clientX, e.clientY); start = { x: p.x, y: p.y, pan: [...pan.value] }; }
-function pointerMove(e: PointerEvent) { if (!start || !e.buttons) { start = null; return; } const p = local(e.clientX, e.clientY), x = p.x - start.x, y = p.y - start.y; if (Math.abs(x) + Math.abs(y) > 5 * units.value) { dragged = true; (e.currentTarget as Element).setPointerCapture(e.pointerId); } if (dragged) pan.value = [start.pan[0]! + x, start.pan[1]! + y]; }
-function zoomAt(next: number, x = 400, y = 270) { next = Math.max(1, Math.min(8, next)); const factor = next / zoom.value; pan.value = [(pan.value[0]! - x + 400) * factor + x - 400, (pan.value[1]! - y + 270) * factor + y - 270]; zoom.value = next; }
-function wheel(e: WheelEvent) { const p = local(e.clientX, e.clientY), delta = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 560 : 1); zoomAt(zoom.value * Math.exp(-Math.max(-150, Math.min(150, delta)) * .003), p.x, p.y); }
-function reset() { zoom.value = 1; pan.value = [0, 0]; }
-onMounted(() => { observer = new ResizeObserver(() => { const r = canvas.value?.getBoundingClientRect(); if (r) units.value = 1 / Math.max(.1, Math.min(r.width / 800, r.height / 560)); }); if (canvas.value) observer.observe(canvas.value); });
-onBeforeUnmount(() => { generation++; observer?.disconnect(); });
+  const seen = new Set<string>();
+  for (const f of [...data.value.features].sort((a,b)=>Number(lit(b.code))-Number(lit(a.code)))) {
+    if (!f.code || !f.name || !f.center || seen.has(f.code) || places.some(p => p.place.cityCode === f.code || p.place.provinceCode === f.code && !p.place.cityCode)) continue; seen.add(f.code);
+    const text = document.createElement('span'); text.className = 'atlas-region-name'; text.textContent = shortName(f.name);
+    const marker = library.marker([f.center[1], f.center[0]], { icon: library.divIcon({ html: text, className: 'atlas-region-label', iconSize: [2, 2], iconAnchor: [1, 1] }), keyboard: true, title: f.name }).addTo(labels);
+    markName(marker, f.name + (lit(f.code) ? '，已有足迹' : '，查看地区')); marker.on('click', () => emit('region', f.code)); labelItems.push({ marker, text, kind: 'region', width: Math.min(shortName(f.name).length * 11, 200) });
+  }
+  layoutLabels();
+}
+function layoutLabels() {
+  if (!map || disposed) return; const size = map.getSize(), boxes: number[][] = [];
+  for (const item of labelItems) {
+    const point = map.latLngToContainerPoint(item.marker.getLatLng()), w = item.width, h = item.kind === 'place' ? 25 : 18;
+    let shown = false;
+    const offsets = item.kind === 'place' ? [[12,-h/2],[-w-12,-h/2],[12,-h-10],[-w-12,h/2+8]] : [[-w/2,-h/2],[-w/2,-h*1.6],[-w/2,h*.6]];
+    for (const [dx,dy] of offsets) {
+      const b = [point.x+dx!,point.y+dy!,point.x+dx!+w,point.y+dy!+h];
+      if (b[0]!<6 || b[2]!>size.x-6 || b[1]!<6 || b[3]!>size.y-6 || b[2]!>size.x-64 && b[1]!<156 || boxes.some(a=>b[0]!<a[2]!+3 && b[2]!>a[0]!-3 && b[1]!<a[3]!+3 && b[3]!>a[1]!-3)) continue;
+      item.text.style.left=dx!+'px';item.text.style.top=dy!+'px';boxes.push(b);shown=true;break;
+    }
+    item.text.style.visibility = shown ? 'visible' : 'hidden';
+    if(item.kind==='region') item.marker.getElement()!.style.visibility=shown?'visible':'hidden';
+  }
+}
+function fit(full = false) {
+  if (!map || !library || !regions) return;
+  let bounds: Leaflet.LatLngBounds;
+  if (countryView.value && !full) bounds = library.latLngBounds([18,73.4],[53.7,135.2]);
+  else if (props.scope === 'world') bounds = library.latLngBounds([-58,-180],[84,180]);
+  else bounds = regions.getBounds();
+  if(!bounds.isValid())return;
+  fitting=true;cameraTouched=false;map.fitBounds(bounds,{padding:[10,10],animate:false});
+  if(countryView.value&&!full)map.setZoom(map.getZoom()+.25,{animate:false});
+  homeZoom = map.getZoom(); zoom.value = 1; fitting=false;layoutLabels();
+}
+async function load() {
+  const current=++generation;loading.value=true;error.value='';data.value=null;
+  try {
+    const [value, sdk] = await Promise.all([api<AtlasMap>('/atlas/maps/'+props.scope),import('leaflet'),import('leaflet/dist/leaflet.css')]);
+    if(disposed||current!==generation)return;data.value=value;library=sdk;await nextTick();if(disposed||current!==generation)return;
+    if(!map){map=library.map(container.value!,{crs:library.CRS.EPSG4326,preferCanvas:true,renderer:library.canvas({padding:.2,tolerance:5}),zoomControl:false,attributionControl:false,minZoom:-2,maxZoom:12,zoomSnap:.25,zoomDelta:.5,zoomAnimation:true,markerZoomAnimation:true,inertia:true,scrollWheelZoom:true,wheelDebounceTime:20,wheelPxPerZoomLevel:100,touchZoom:true,bounceAtZoomLimits:false,keyboard:true});
+      map.setView([35,105],2,{animate:false});pins=library.layerGroup().addTo(map);labels=library.layerGroup().addTo(map);
+      map.on('dragstart zoomstart',()=>{if(!fitting){cameraTouched=true;clearTimeout(resizeTimer);}});map.on('zoomend',()=>{if(map&&!disposed){zoom.value=Math.pow(2,map.getZoom()-homeZoom);layoutLabels();}});map.on('moveend',layoutLabels);
+    }
+    regions?.remove();regions=library.geoJSON({type:'FeatureCollection',features:value.features.map(f=>({type:'Feature',properties:{code:f.code,name:f.name},geometry:f.geometry}))} as GeoJSON.FeatureCollection,{style:regionStyle,onEachFeature:(feature,layer)=>{const code=feature.properties?.code;if(code)layer.on('click',()=>emit('region',code));}}).addTo(map);
+    visitedCount.value=value.features.filter(f=>lit(f.code)).length;map.invalidateSize({pan:false});renderLabels();fit();
+  }catch(e){if(!disposed&&current===generation)error.value=e instanceof ApiError ? errorText(e) : '地区地图暂时无法显示，记录仍保留，请重试。';}finally{if(current===generation)loading.value=false;}
+}
+function changeZoom(delta:number){clearTimeout(resizeTimer);cameraTouched=true;if(map)map.setZoom(map.getZoom()+delta);}
+watch(()=>props.scope,()=>{if(container.value)void load();});
+watch(()=>[props.places,props.selected],()=>{regions?.setStyle(regionStyle);visitedCount.value=data.value?.features.filter(f=>lit(f.code)).length??0;renderLabels();});
+onMounted(()=>{void load();observer=new ResizeObserver(()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(map&&!disposed){map.invalidateSize({pan:false});if(!cameraTouched)fit();else layoutLabels();}},100);});if(container.value)observer.observe(container.value);});
+onBeforeUnmount(()=>{disposed=true;generation++;observer?.disconnect();clearTimeout(resizeTimer);map?.remove();});
 </script>
 <template>
-  <div ref="canvas" class="atlas-canvas" @wheel.prevent="wheel">
-    <svg v-if="data" ref="svg" viewBox="0 0 800 560" role="group" aria-label="足迹地区地图" :data-zoom="zoom.toFixed(2)" @pointerdown="pointerDown" @pointermove="pointerMove" @pointerup="start = null" @pointercancel="start = null">
-      <defs><pattern id="atlas-grid" width="56" height="56" patternUnits="userSpaceOnUse"><path d="M56 0H0V56" fill="none" stroke="#b7cbbd" stroke-width=".4" opacity=".4"/></pattern></defs><rect width="800" height="560" fill="url(#atlas-grid)"/>
-      <path v-for="(f,index) in paths" :key="f.code + ':' + index" class="map-region" :class="{ visited: lit(f.code) }" :d="f.path" fill-rule="evenodd" :role="f.code ? 'button' : undefined" :tabindex="f.code ? 0 : undefined" :aria-label="f.name + (lit(f.code) ? '，已有足迹' : '，查看地区')" @click="region(f.code)" @keydown.enter.prevent="region(f.code, true)" @keydown.space.prevent="region(f.code, true)"><title>{{ f.name }}</title></path>
-      <g class="atlas-region-labels" aria-hidden="true" pointer-events="none"><g v-for="label in labels" :key="label.code"><line v-if="label.moved" :x1="label.center[0]" :y1="label.center[1]" :x2="label.x" :y2="label.y"/><text :x="label.x" :y="label.y" :font-size="fontSize" text-anchor="middle" dominant-baseline="central">{{ label.name }}</text></g></g>
-      <g v-for="pin in pins" :key="pin.place.key" class="pin" :class="{ wish: pin.records === 0 }" role="button" tabindex="0" :aria-label="pin.place.name + (pin.records ? '，已到访' : '，想去')" :transform="`translate(${pin.point[0]},${pin.point[1]})`" @click.stop="pick(pin.place.key)" @keydown.enter.prevent="pick(pin.place.key, true)" @keydown.space.prevent="pick(pin.place.key, true)">
-        <title>{{ pin.place.name }} · {{ pin.records ? pin.records + ' 条到访' : '想去' }}</title><circle v-if="selected === pin.place.key" class="pin-halo" r="20"/>
-        <path v-if="pin.showLabel && pin.offset[1]" :d="`M0,0L${pin.offset[0]},${pin.offset[1]}`" class="pin-leader"/>
-        <rect v-if="pin.showLabel" class="hit" :x="pin.offset[0]! - 5" :y="pin.offset[1]! - pinFont * .8" :width="pin.labelWidth + 10" :height="pinFont * 1.6" rx="7"/>
-        <circle class="pin-hit" r="16"/><circle class="pin-core" r="5"/>
-        <text v-if="pin.showLabel" class="pin-label" :style="{ fontSize: pinFont + 'px' }" :x="pin.offset[0]" :y="pin.offset[1]" dominant-baseline="central">{{ pin.label }}</text>
-      </g>
-    </svg>
+  <div class="atlas-canvas atlas-native-canvas">
+    <div ref="container" class="atlas-reference-map" role="group" aria-label="足迹地区地图" :data-zoom="zoom.toFixed(2)" :data-visited-regions="visitedCount" :data-region-count="data?.features.length ?? 0" data-renderer="leaflet-canvas"></div>
     <div v-if="loading || error" class="atlas-map-status"><p :role="error ? 'alert' : 'status'">{{ error || '正在展开足迹地图…' }}</p><button v-if="error" class="text-button" @click="load">重新加载底图</button></div>
-    <div class="atlas-map-tools"><button class="icon-button" aria-label="放大足迹地图" :disabled="zoom >= 8" @click="zoomAt(zoom * 1.4)"><AtlasIcon name="plus"/></button><button class="icon-button" aria-label="缩小足迹地图" :disabled="zoom <= 1" @click="zoomAt(zoom / 1.4)"><AtlasIcon name="minus"/></button><button class="icon-button" aria-label="重置足迹地图" @click="reset"><AtlasIcon name="locate"/></button></div>
-    <p v-if="data" class="atlas-source"><a :href="data.sourceUrl" target="_blank" rel="noreferrer">{{ data.attribution }}</a><br>滚轮缩放 · 拖动查看 · 放大显示更多区域名称</p>
+    <div class="atlas-map-tools"><button class="icon-button" aria-label="放大足迹地图" @click="changeZoom(.5)"><AtlasIcon name="plus"/></button><button class="icon-button" aria-label="缩小足迹地图" @click="changeZoom(-.5)"><AtlasIcon name="minus"/></button><button class="icon-button" aria-label="重置足迹地图" @click="fit()"><AtlasIcon name="locate"/></button></div>
+    <p v-if="data" class="atlas-source"><a :href="data.sourceUrl" target="_blank" rel="noreferrer">{{ data.attribution }}</a><button class="atlas-overview-button" @click="fit(true)">查看全貌</button></p>
   </div>
 </template>

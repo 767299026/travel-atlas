@@ -39,7 +39,9 @@
     "atlas:setup": "tsx backend/src/cli/atlas-setup.ts",
     "test:browser:pages": "tsx scripts/browser-pages-check.ts",
     "demo": "tsx scripts/demo.ts",
-    "test:browser:atlas": "tsx scripts/browser-atlas-check.ts"
+    "test:browser:atlas": "tsx scripts/browser-atlas-check.ts",
+    "test:browser:mobile": "tsx scripts/browser-mobile-layout-check.ts",
+    "test:browser:map-perf": "tsx scripts/browser-map-performance.ts"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

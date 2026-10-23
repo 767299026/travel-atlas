@@ -188,3 +188,9 @@ M3 的 `npm run test:browser:m3` 与真实服务 `npm run test:browser:amap` 复
 `npm run demo -- status|seed|cleanup` 管理本人账号的演示样本；清单及操作缓存仅在忽略的 `data/demo/`，备份在 `data/backups/`。当前按授权保留 3 个演示旅程、3 篇图文、14 条行程到访、2 条城市补记和 1 条心愿，不能继续把早期的“无演示数据”当成当前库状态。用户修改过的演示内容会阻止自动清理。
 
 `npm run test:browser:atlas` 需 `PLAYWRIGHT_MODULE` 和可选暂存构建目录，复用隔离端口，不能同时运行其他浏览器夹具；测试 SDK 替身仅验证交互，真实高德另用实际域名审核。75 项后端、13 组地图、16 组页面、10 组路线地图以及 8 组真实域名流程通过，范围见专题。
+
+## 小米截图与地图渲染替换（2026-10-23）
+
+图鉴由自绘 SVG 改为已有 Leaflet Canvas，保留原地区数据与市级高德，默认国内视野放大；标题、画布、图源、统计和抽屉分区布局，三工具按钮各 44×44。性能测量、社区方案对照和真机边界见 [手机地图专题](mobile-map-rendering.md)。
+
+`npm run test:browser:mobile` 提供手机布局／实际 CDP 触摸检查，性能脚本为 `scripts/browser-map-performance.ts`，仍通过 `FRONTEND_TEST_DIST` 选择暂存构建。用户提供的 `tmp/` 截图不会提交。

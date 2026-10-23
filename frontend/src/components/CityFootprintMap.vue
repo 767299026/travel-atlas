@@ -52,10 +52,11 @@ async function render(fit = false) {
       }
     }
     if (disposed || current !== rendering) return; if (overlays.length) map.remove(overlays); overlays = next; labels = nextLabels; map.add(overlays);
-    if (fit && overlays.length) map.setFitView(overlays, true, [100, 90, 150, 90], 15);
+    if (fit && overlays.length) map.setFitView(overlays, true, fitPadding(), 15);
     zoom.value = map.getZoom(); layoutLabels();
   } catch (e) { if (!disposed && current === rendering) { if (overlays.length) map.remove(overlays); overlays = []; error.value = safeError(e); } }
 }
+function fitPadding(): number[] { const r = container.value?.getBoundingClientRect(); return r && r.height < 300 ? [24, 72, 40, 56] : [40, 80, 48, 64]; }
 function layoutLabels() {
   if (disposed || !map?.lngLatToContainer || !container.value) return;
   const rect = container.value.getBoundingClientRect(), boxes: number[][] = [];
@@ -64,7 +65,7 @@ function layoutLabels() {
     let shown = false;
     for (const [dx, dy] of [[14, -20], [-w - 14, -20], [14, 18], [-w - 14, 18], [14, -60], [-w - 14, 58]]) {
       const b = [px + dx!, py + dy!, px + dx! + w, py + dy! + h];
-      if (b[0]! < 8 || b[2]! > rect.width - 8 || b[1]! < 80 || b[3]! > rect.height - 150 || boxes.some(a => b[0]! < a[2]! + 4 && b[2]! > a[0]! - 4 && b[1]! < a[3]! + 4 && b[3]! > a[1]! - 4)) continue;
+      if (b[0]! < 8 || b[2]! > rect.width - 8 || b[1]! < 12 || b[3]! > rect.height - 36 || b[2]! > rect.width - 64 && b[1]! < 152 || boxes.some(a => b[0]! < a[2]! + 4 && b[2]! > a[0]! - 4 && b[1]! < a[3]! + 4 && b[3]! > a[1]! - 4)) continue;
       item.button.style.left = dx! + 'px'; item.button.style.top = dy! + 'px'; boxes.push(b); shown = true; break;
     }
     item.button.style.visibility = shown ? 'visible' : 'hidden';
@@ -81,7 +82,7 @@ function wheel(e: WheelEvent) {
   zoom.value = map.getZoom();
 }
 function zoomBy(step: number) { if (map) { map.setZoom(Math.max(3, Math.min(20, map.getZoom() + step))); zoom.value = map.getZoom(); } }
-function fit() { if (overlays.length) map.setFitView(overlays, true, [100, 90, 150, 90], 15); else { map?.setCity(props.code); map?.setZoom(10); } }
+function fit() { if (overlays.length) map.setFitView(overlays, true, fitPadding(), 15); else { map?.setCity(props.code); map?.setZoom(10); } }
 watch(() => [props.code, props.year, props.revision], () => { if (container.value) void load(); });
 onMounted(() => { void load(); observer = new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (!disposed && map) { map.resize?.(); if (overlays.length) fit(); } }, 150); }); if (container.value) observer.observe(container.value); });
 onBeforeUnmount(() => { disposed = true; generation++; rendering++; observer?.disconnect(); clearTimeout(resizeTimer); map?.destroy(); });
@@ -91,6 +92,6 @@ onBeforeUnmount(() => { disposed = true; generation++; rendering++; observer?.di
     <div ref="container" class="city-online-map" role="group" aria-label="城市高德二维足迹地图"></div>
     <div v-if="loading || error" class="city-map-message" :role="error ? 'alert' : 'status'"><p>{{ error || '正在展开城市地图与足迹…' }}</p><button v-if="error" class="text-button" @click="load">重试城市地图</button></div>
     <div class="atlas-map-tools"><button class="icon-button" aria-label="放大城市地图" :disabled="!online || zoom >= 20" @click="zoomBy(1)"><AtlasIcon name="plus"/></button><button class="icon-button" aria-label="缩小城市地图" :disabled="!online || zoom <= 3" @click="zoomBy(-1)"><AtlasIcon name="minus"/></button><button class="icon-button" aria-label="查看全部城市足迹" :disabled="!online" @click="fit"><AtlasIcon name="locate"/></button></div>
-    <div v-if="layer" class="city-layer-controls" aria-label="城市足迹图层"><label><input v-model="showPoints" type="checkbox" @change="render()">到访地点 {{ layer.points.length }}</label><label><input v-model="showPaths" type="checkbox" @change="render()">已存路径 {{ layer.paths.length }}</label><small v-if="layer.withoutLocation">{{ layer.withoutLocation }} 条记录未定位，在城市列表查看</small><small v-if="!layer.points.length && !layer.paths.length">暂无精确足迹，可在实际行程补充位置后确认到访。</small><small v-if="layer.sampled">路径显示已抽样，原始路径请进入旅程查看。</small><small v-if="layer.truncated">仅显示部分记录，更多内容请进入旅程查看。</small><small v-if="unreviewed">含未核对路径，请进入旅程查看来源与端点。</small><small v-if="layer.paths.length">{{ sourceLabel }} · 不代表 GPS 实录</small></div>
+    <div v-if="layer" class="city-layer-controls" aria-label="城市足迹图层"><label><input v-model="showPoints" type="checkbox" @change="render()">到访地点 {{ layer.points.length }}</label><label><input v-model="showPaths" type="checkbox" @change="render()">已存路径 {{ layer.paths.length }}</label><small v-if="layer.withoutLocation">{{ layer.withoutLocation }} 条记录未定位，在城市列表查看</small><small v-if="!layer.points.length && !layer.paths.length">暂无精确足迹，可在实际行程补充位置后确认到访。</small><small v-if="layer.sampled">路径显示已抽样，原始路径请进入旅程查看。</small><small v-if="layer.truncated">仅显示部分记录，更多内容请进入旅程查看。</small><details v-if="layer.paths.length" class="city-layer-notes"><summary>{{ sourceLabel }}{{ unreviewed ? ' · 未核对' : '' }} · 非 GPS 实录</summary><small v-if="unreviewed">含未核对路径，请进入旅程查看来源与端点。</small><small>地图仅展示已有路径，不代表 GPS 实录或现场通行情况。</small></details></div>
   </div>
 </template>

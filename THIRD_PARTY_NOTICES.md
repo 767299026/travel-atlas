@@ -27,3 +27,7 @@ BRouter 1.7.10 is installed locally from its official release, without committin
 The lightweight world geometry in `backend/assets/world.json` is derived from the Natural Earth 1:110m GeoJSON retained in the user-owned prototype. Natural Earth declares map data public domain: [terms](https://www.naturalearthdata.com/about/terms-of-use/), checked 2026-10-23. Required labels, identifiers, representative centers and rounded geometry are kept; these are reference regions, not navigation or survey data.
 
 Domestic metadata and geometry use fixed DataV GeoAtlas endpoints and ignored local cache; their geometry dataset is not committed. Sources, snapshot counts and remaining formal-use verification are recorded in [footprints and pages](docs/footprints-and-pages.md). No prototype photographs, sample trips or simulated visits are imported.
+
+## Reference atlas renderer
+
+The China, province and world reference atlas reuses the existing Leaflet 1.9.4 Canvas renderer (BSD-2-Clause). GeoJSON source attribution remains visible below the map. This reference renderer fetches no background tile service; OpenHikingMap is used only by the separate outdoor view described above. See [mobile rendering notes](docs/mobile-map-rendering.md).
