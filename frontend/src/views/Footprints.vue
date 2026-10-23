@@ -5,7 +5,7 @@ import { api, errorText, mutationId } from '../api';
 import { loadAtlasCatalog } from '../atlasCatalog';
 import type { AtlasCatalog, AtlasOverview, AtlasDetail, AtlasRecord, PlaceInput } from '../../../packages/contracts/src/index.js';
 import AtlasMap from '../components/AtlasMap.vue';
-import type { AtlasCamera } from '../maps/atlasNavigation';
+import { atlasZoomLevels, type AtlasCamera } from '../maps/atlasNavigation';
 import CityFootprintMap from '../components/CityFootprintMap.vue';
 import AtlasIcon from '../components/AtlasIcon.vue';
 import ModalSheet from '../components/ModalSheet.vue';
@@ -63,7 +63,7 @@ function zoomRegion(code: string, camera: AtlasCamera) {
   if (city) {
     const parent = city.code === city.provinceCode ? '100000' : city.provinceCode;
     enterCity(code); autoCity.value = true;
-    cityReturnCamera = { scope: parent, center: camera.center, zoom: parent === '100000' ? 4.25 : 5.5 };
+    cityReturnCamera = { scope: parent, center: camera.center, zoom: parent === '100000' ? atlasZoomLevels.returnChina : atlasZoomLevels.returnProvince };
     void openCity('CHN:' + code, false, false);
   }
   else { changeScope(code); atlasCamera.value = camera; }

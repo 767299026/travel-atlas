@@ -21,11 +21,23 @@ try {
   const zoomAtWuhan = async () => { const b = await marker().boundingBox(); assert.ok(b); await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.wheel(0, -80); await page.waitForTimeout(550); };
   const scope = () => map.getAttribute('data-scope');
   await map.waitFor(); await settle(); await page.screenshot({ path: output + '/china-palette.png' });
+  assert.equal(await map.getAttribute('data-projection'), 'EPSG:3857');
+  const regions = (await (await context.request.get(fixture.web + '/api/v1/atlas/maps/100000')).json()).data.features;
+  const anchorNames = ['新疆维吾尔自治区', '黑龙江省', '海南省'];
+  const anchors = await page.evaluate((names: string[]) => names.map(name => { const element = [...document.querySelectorAll<HTMLElement>('.atlas-region-label')].find(e => e.title === name)!; const b = element.getBoundingClientRect(), host = document.querySelector('.atlas-reference-map')!.getBoundingClientRect(); return { name, x: b.x + b.width / 2 - host.x, y: b.y + b.height / 2 - host.y }; }), anchorNames);
+  const source = anchorNames.map(name => regions.find((r: any) => r.name === name).center);
+  const projectedY = (lat: number) => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) * 180 / Math.PI;
+  const sx = (anchors[1].x - anchors[0].x) / (source[1][0] - source[0][0]), sy = (anchors[2].y - anchors[1].y) / (projectedY(source[1][1]) - projectedY(source[2][1]));
+  assert.ok(Math.abs(sx / sy - 1) < .02, 'rendered Mercator coordinates must use equal horizontal and vertical scales');
+  const x0 = anchors[0].x - source[0][0] * sx, y0 = anchors[2].y + projectedY(source[2][1]) * sy;
+  const areaForBounds = await map.boundingBox(); assert.ok(x0 + 73.5 * sx >= 0 && x0 + 135.1 * sx <= areaForBounds.width, 'default view must contain the mainland east/west extent');
+  assert.ok(y0 - projectedY(53.57) * sy >= 0 && y0 - projectedY(18.0) * sy <= areaForBounds.height, 'default view must contain the mainland north/south extent');
+  cases.push('mercator-outline-proportions-and-complete-default-mainland-view');
   const canvas = await page.locator('.atlas-reference-map canvas').elementHandle();
   for (let i = 0; i < 8 && await scope() === '100000'; i++) await zoomAtWuhan();
   assert.equal(await scope(), '420000'); await page.getByRole('heading', { name: '湖北省', exact: true }).waitFor(); await settle();
   assert.ok(await canvas.evaluate((e: HTMLElement) => e.isConnected), 'reuse the Canvas during scope changes');
-  assert.ok(Number(await map.getAttribute('data-level')) >= 5, 'keep the zoom instead of refitting province bounds');
+  assert.ok(Number(await map.getAttribute('data-level')) >= 6, 'keep the zoom instead of refitting province bounds');
   assert.equal(await page.locator('.atlas-drawer-scroll').count(), 0); await page.screenshot({ path: output + '/wheel-enters-hubei.png' }); cases.push('wheel-focus-enters-hubei-without-click-or-camera-reset');
   const before = Number(await map.getAttribute('data-level'));
   await openMapTools(page); await page.getByRole('button', { name: '缩小足迹地图', exact: true }).click(); await page.waitForTimeout(600); assert.equal(await scope(), '420000');
@@ -35,18 +47,19 @@ try {
   assert.equal(await page.locator('.city-footprint-canvas').getAttribute('data-zoom'), '10', 'city entry shows city overview rather than jumping to a cluster of visits');
   assert.equal(await page.locator('.atlas-drawer-scroll').count(), 0); await page.screenshot({ path: output + '/wheel-enters-wuhan.png' }); cases.push('continued-wheel-enters-city-2d-with-footprints-and-collapsed-drawer');
   for (let i = 0; i < 3; i++) { await openMapTools(page); await page.getByRole('button', { name: '缩小城市地图', exact: true }).click(); await page.waitForTimeout(250); }
-  await map.waitFor(); await settle(); assert.equal(await scope(), '420000'); assert.equal(await map.getAttribute('data-level'), '5.50'); cases.push('city-zoom-out-returns-to-province-once');
+  await map.waitFor(); await settle(); assert.equal(await scope(), '420000'); assert.equal(await map.getAttribute('data-level'), '6.50'); cases.push('city-zoom-out-returns-to-province-once');
   for (let i = 0; i < 3; i++) { await openMapTools(page); await page.getByRole('button', { name: '缩小足迹地图', exact: true }).click(); await page.waitForTimeout(500); }
   await settle(); assert.equal(await scope(), '100000'); cases.push('province-zoom-out-returns-to-national');
   await openMapTools(page); await page.getByRole('button', { name: '重置足迹地图', exact: true }).click(); await waitForMapCenter(page); await page.waitForTimeout(600); assert.equal(await scope(), '100000');
   await page.setViewportSize({ width: 360, height: 740 }); await page.waitForTimeout(600); assert.equal(await scope(), '100000'); await page.setViewportSize({ width: 393, height: 775 }); await page.waitForTimeout(400); cases.push('reset-and-resize-do-not-drill');
   const atlas = (await (await context.request.get(fixture.web + '/api/v1/atlas')).json()).data, wuhan = atlas.places.find((p: any) => p.place.cityCode === '420100').place.center;
-  const dot = await marker().boundingBox(), scale = 512 * 2 ** Number(await map.getAttribute('data-level')) / 360;
-  const ocean = { x: dot.x + dot.width / 2 + (129 - wuhan[0]) * scale, y: dot.y + dot.height / 2 - (18 - wuhan[1]) * scale };
+  const dot = await marker().boundingBox(), scale = 256 * 2 ** Number(await map.getAttribute('data-level')) / 360;
+  const mercatorY = (latitude: number) => Math.log(Math.tan(Math.PI / 4 + latitude * Math.PI / 360)) * 180 / Math.PI;
+  const ocean = { x: dot.x + dot.width / 2 + (129 - wuhan[0]) * scale, y: dot.y + dot.height / 2 - (mercatorY(18) - mercatorY(wuhan[1])) * scale };
   const area = await map.boundingBox(); assert.ok(ocean.x < area.x + area.width && ocean.y < area.y + area.height - 34, 'sea sample must be inside the actual map viewport');
   await page.mouse.move(ocean.x, ocean.y);
   for (let i = 0; i < 6; i++) { await page.mouse.wheel(0, -80); await page.waitForTimeout(500); }
-  assert.equal(await scope(), '100000'); assert.ok(Number(await map.getAttribute('data-level')) >= 5); cases.push('zoom-over-water-does-not-pick-nearest-province');
+  assert.equal(await scope(), '100000'); assert.ok(Number(await map.getAttribute('data-level')) >= 6); cases.push('zoom-over-water-does-not-pick-nearest-province');
   await openMapTools(page); await page.getByRole('button', { name: '重置足迹地图', exact: true }).click(); await waitForMapCenter(page);
   await page.getByRole('button', { name: '世界', exact: true }).click(); await settle();
   for (let i = 0; i < 8 && await scope() === 'world'; i++) {
@@ -56,7 +69,7 @@ try {
   for (let i = 0; i < 8 && await scope() === '100000'; i++) { await openMapTools(page); await page.getByRole('button', { name: '缩小足迹地图', exact: true }).click(); await page.waitForTimeout(500); }
   await settle(); assert.equal(await scope(), 'world'); cases.push('national-zoom-out-returns-world');
   await page.getByRole('button', { name: '中国', exact: true }).click(); await settle();
-  while (Number(await map.getAttribute('data-level')) < 3.75) await zoomAtWuhan();
+  while (Number(await map.getAttribute('data-level')) < 4.75) await zoomAtWuhan();
   const pinchBox = await marker().boundingBox(), cx = pinchBox.x + pinchBox.width / 2, cy = pinchBox.y + pinchBox.height / 2;
   const cdp = await context.newCDPSession(page), fingers = (radius: number) => [{ x: cx - radius, y: cy, id: 0, radiusX: 2, radiusY: 2 }, { x: cx + radius, y: cy, id: 1, radiusX: 2, radiusY: 2 }];
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: fingers(14) });

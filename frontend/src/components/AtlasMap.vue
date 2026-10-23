@@ -4,7 +4,7 @@ import type * as Leaflet from 'leaflet';
 import { api, ApiError, errorText } from '../api';
 import type { AtlasCity, AtlasMap } from '../../../packages/contracts/src/index.js';
 import MapTools from './MapTools.vue';
-import { atlasPalette, containsAtlasPoint, type AtlasCamera } from '../maps/atlasNavigation';
+import { atlasPalette, atlasZoomLevels, containsAtlasPoint, type AtlasCamera } from '../maps/atlasNavigation';
 const props = defineProps<{ scope: string; places: AtlasCity[]; selected: string | null; camera?: AtlasCamera | null; navigationEnabled?: boolean }>();
 const emit = defineEmits<{ region: [code: string]; place: [key: string]; zoomScope: [code: string, camera: AtlasCamera] }>();
 const container = ref<HTMLElement>(), data = ref<AtlasMap | null>(null), loading = ref(false), error = ref(''), zoom = ref(1), visitedCount = ref(0);
@@ -37,9 +37,9 @@ function navigateZoom(direction: number) {
   const level = map.getZoom(), point = zoomAnchor || map.getCenter();
   let target = '';
   if (direction < 0) {
-    if (countryView.value && level <= 1.25) target = 'world';
-    else if (props.scope !== 'world' && !countryView.value && level <= 4) target = '100000';
-  } else if (level >= (props.scope === 'world' ? 3.25 : countryView.value ? 5 : 7)) {
+    if (countryView.value && level <= atlasZoomLevels.leaveChina) target = 'world';
+    else if (props.scope !== 'world' && !countryView.value && level <= atlasZoomLevels.leaveProvince) target = '100000';
+  } else if (level >= (props.scope === 'world' ? atlasZoomLevels.enterChina : countryView.value ? atlasZoomLevels.enterProvince : atlasZoomLevels.enterCity)) {
     // Bounds prune the candidates. Polygon containment avoids selecting a nearby coastal region over water.
     regions.eachLayer(layer => {
       const polygon = layer as Leaflet.Polygon & { feature?: GeoJSON.Feature };
@@ -107,7 +107,9 @@ function fit(full = false, animate = false) {
   else if (props.scope === 'world') bounds = library.latLngBounds([-58,-180],[84,180]);
   else bounds = regions.getBounds();
   if (!bounds.isValid()) return;
-  const targetZoom = Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), map.getBoundsZoom(bounds, false, library.point(20, 20)) + (countryView.value && !full ? .25 : 0)));
+  const targetZoom = Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), map.getBoundsZoom(bounds, false, library.point(24, 24))));
+  // Mercator's centre is the midpoint in projected space, not the mean latitude.
+  const center = map.unproject(map.project(bounds.getNorthWest(), 0).add(map.project(bounds.getSouthEast(), 0)).divideBy(2), 0);
   fitting = true; cameraTouched = false; homeZoom = targetZoom;
   const finish = () => {
     if (!map || disposed) return;
@@ -115,11 +117,11 @@ function fit(full = false, animate = false) {
     lastZoom = map.getZoom(); zoom.value = Math.pow(2, lastZoom - homeZoom);
     fitting = false; centering.value = false; layoutLabels();
   };
-  if (animate && !matchMedia('(prefers-reduced-motion: reduce)').matches && (Math.abs(map.getZoom() - targetZoom) > .01 || map.latLngToContainerPoint(bounds.getCenter()).distanceTo(map.getSize().divideBy(2)) > 1)) {
+  if (animate && !matchMedia('(prefers-reduced-motion: reduce)').matches && (Math.abs(map.getZoom() - targetZoom) > .01 || map.latLngToContainerPoint(center).distanceTo(map.getSize().divideBy(2)) > 1)) {
     centering.value = true; finishCenter = finish; map.once('moveend', finish);
-    map.flyTo(bounds.getCenter(), targetZoom, { duration: .65 });
+    map.flyTo(center, targetZoom, { duration: .65 });
   } else {
-    map.setView(bounds.getCenter(), targetZoom, { animate: false }); finish();
+    map.setView(center, targetZoom, { animate: false }); finish();
   }
 }
 async function load() {
@@ -129,7 +131,7 @@ async function load() {
   try {
     const [value, sdk] = await Promise.all([api<AtlasMap>('/atlas/maps/'+props.scope),import('leaflet'),import('leaflet/dist/leaflet.css')]);
     if(disposed||current!==generation)return;data.value=value;library=sdk;await nextTick();if(disposed||current!==generation)return;
-    if(!map){map=library.map(container.value!,{crs:library.CRS.EPSG4326,preferCanvas:true,renderer:library.canvas({padding:.2,tolerance:5}),zoomControl:false,attributionControl:false,minZoom:-2,maxZoom:12,zoomSnap:.25,zoomDelta:.5,zoomAnimation:true,markerZoomAnimation:true,inertia:true,scrollWheelZoom:true,wheelDebounceTime:20,wheelPxPerZoomLevel:100,touchZoom:true,bounceAtZoomLimits:false,keyboard:true});
+    if(!map){map=library.map(container.value!,{crs:library.CRS.EPSG3857,preferCanvas:true,renderer:library.canvas({padding:.2,tolerance:5}),zoomControl:false,attributionControl:false,minZoom:-2,maxZoom:13,zoomSnap:.25,zoomDelta:.5,zoomAnimation:true,markerZoomAnimation:true,inertia:true,scrollWheelZoom:true,wheelDebounceTime:20,wheelPxPerZoomLevel:100,touchZoom:true,bounceAtZoomLimits:false,keyboard:true});
       map.setView([35,105],2,{animate:false});pins=library.layerGroup().addTo(map);labels=library.layerGroup().addTo(map);
       map.on('dragstart zoomstart',()=>{if(!fitting){cameraTouched=true;clearTimeout(resizeTimer);clearTimeout(navigationTimer);}}); map.on('dragstart',()=>{interruptCenter();zoomAnchor=null;});map.on('zoomend',zoomEnded);map.on('moveend',layoutLabels);
     }
@@ -149,7 +151,7 @@ onBeforeUnmount(()=>{interruptCenter();disposed=true;generation++;observer?.disc
 </script>
 <template>
   <div class="atlas-canvas atlas-native-canvas" :style="{ '--atlas-water': palette.water, '--atlas-label': palette.label, '--atlas-surface': palette.surface }">
-    <div ref="container" class="atlas-reference-map" role="group" aria-label="足迹地区地图" :data-zoom="zoom.toFixed(2)" :data-visited-regions="visitedCount" :data-region-count="data?.features.length ?? 0" :data-camera-moving="centering" :data-scope="scope" :data-level="(homeZoom + Math.log2(zoom)).toFixed(2)" data-renderer="leaflet-canvas" @wheel.capture.passive="captureWheel" @touchstart.capture.passive="capturePinch" @pointerdown.capture="interruptCenter" @keydown.capture="interruptCenter(); zoomAnchor = null"></div>
+    <div ref="container" class="atlas-reference-map" role="group" aria-label="足迹地区地图" :data-zoom="zoom.toFixed(2)" :data-visited-regions="visitedCount" :data-region-count="data?.features.length ?? 0" :data-camera-moving="centering" :data-scope="scope" :data-level="(homeZoom + Math.log2(zoom)).toFixed(2)" data-projection="EPSG:3857" data-renderer="leaflet-canvas" @wheel.capture.passive="captureWheel" @touchstart.capture.passive="capturePinch" @pointerdown.capture="interruptCenter" @keydown.capture="interruptCenter(); zoomAnchor = null"></div>
     <div v-if="loading || error" class="atlas-map-status"><p :role="error ? 'alert' : 'status'">{{ error || '正在展开足迹地图…' }}</p><button v-if="error" class="text-button" @click="load">重新加载底图</button></div>
     <MapTools :disabled="loading || !data" @zoom-in="changeZoom(.5)" @zoom-out="changeZoom(-.5)" @reset="fit(false, true)" @toggle="toggleTools"/>
     <p v-if="data" class="atlas-source"><a :href="data.sourceUrl" target="_blank" rel="noreferrer">{{ data.attribution }}</a><button class="atlas-overview-button" @click="fit(true, true)">查看全貌</button></p>

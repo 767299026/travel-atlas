@@ -1,7 +1,15 @@
 import type { AtlasGeometry } from '../../../packages/contracts/src/index.js';
 
-/** Camera values belong to the reference atlas only; never use them as recorded GPS positions. */
+/** EPSG:3857 camera values belong to the reference atlas only; never use them as recorded GPS positions. */
 export interface AtlasCamera { scope: string; center: [number, number]; zoom: number }
+
+// Keep navigation thresholds in one place; zoom levels are specific to the projection.
+export const atlasZoomLevels = {
+  enterChina: 4.25, enterProvince: 6, enterCity: 8,
+  leaveChina: 2.25, leaveProvince: 5,
+  returnChina: 5.25, returnProvince: 6.5,
+} as const;
+
 export const atlasPalette = {
   water: '#DEE8E5', land: '#E8E5DA', visited: '#A7BBA7', border: '#FAF8F1',
   label: '#506158', surface: '#F7F6F2',
