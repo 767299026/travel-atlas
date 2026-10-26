@@ -29,7 +29,7 @@ export async function browserFixture(options: { shareSecret?: string; routing?: 
       let ready = false; for (let i = 0; i < 100; i++) { if (child.exitCode !== null) throw new Error(name + ' preview exited'); try { if ((await fetch('http://127.0.0.1:' + port)).ok) { ready = true; break; } } catch {} await new Promise(resolve => setTimeout(resolve, 100)); }
       if (!ready) throw new Error(name + ' preview not ready');
     }
-    const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright'); browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/opt/google/chrome/chrome', headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+    const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright'); browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/opt/google/chrome/chrome', headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage', ...(process.env.BROWSER_SOFTWARE_VECTOR === 'true' ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] : [])] });
     return { browser, app, database, password, username, web, admin, mediaRoot, cleanup };
   } catch (error) { await cleanup(); throw error; }
 }

@@ -61,6 +61,18 @@ body:has(.footprint-view.city-view){padding:0}
 .city-map-empty{position:absolute;top:16px;left:16px;right:76px;max-width:280px;padding:12px;border-radius:12px;background:#fffdf5ef;font-size:12px;line-height:1.7;color:var(--forest);pointer-events:none}
 .city-map-empty small{display:block;font-size:11px;color:var(--muted);margin-top:3px}
 .city-marker-anchor{width:44px;height:44px;left:-16px;top:-16px;line-height:44px}
+.city-cluster-anchor{position:absolute;left:-16px;top:-16px;width:44px;height:44px;padding:0;border:4px solid #fffdf4;border-radius:50%;background:#315e4c;color:#fffdf4;font:600 14px/36px system-ui,sans-serif;box-shadow:0 2px 9px #234a432a;cursor:pointer}
+.city-cluster-anchor:focus-visible{outline:2px solid var(--forest);outline-offset:3px}
+.city-map-choices{position:absolute;left:12px;right:12px;bottom:32px;max-width:360px;max-height:min(280px,calc(100% - 88px));display:flex;flex-direction:column;border:1px solid var(--line);border-radius:16px;background:var(--paper);box-shadow:0 5px 26px #234a4329;overflow:hidden;z-index:145}
+.city-map-choices>header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 8px 4px 16px;flex:none}
+.city-map-choices h3{font-size:14px;line-height:1.5;outline:none}
+.city-map-choices>header>.icon-button{width:44px;min-width:44px;min-height:44px}
+.city-choice-list{overflow:auto;min-height:0;overscroll-behavior:contain;padding:0 16px 8px}
+.city-map-choice{display:flex;width:100%;min-height:62px;align-items:center;justify-content:space-between;gap:12px;text-align:left;border-top:1px solid var(--line);padding:10px 0}
+.city-map-choice>span{display:grid;gap:5px;min-width:0;flex:1}
+.city-map-choice strong{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.city-map-choice small{font-size:10px;line-height:1.5;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.city-map-choice>.od-icon{flex:none;color:var(--muted)}
 @media(min-width:800px){
   .city-view .atlas-workspace.city-scope{grid-template-columns:minmax(0,1fr) 340px;grid-template-rows:minmax(0,1fr);grid-template-areas:"map memory"}
   .city-view .city-memory,.city-view .city-memory.expanded{position:relative;inset:auto;grid-area:memory;max-height:none;height:100%;border-radius:0;border-left:1px solid var(--line);border-top:0;padding:0 18px 12px}

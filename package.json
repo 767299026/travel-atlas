@@ -44,6 +44,7 @@
     "test:browser:atlas-zoom": "tsx scripts/browser-atlas-zoom-check.ts",
     "test:browser:atlas-labels": "tsx scripts/browser-atlas-label-check.ts",
     "test:browser:memories": "tsx scripts/browser-footprint-memories-check.ts",
+    "test:browser:city-picking": "tsx scripts/browser-city-picking-check.ts",
     "test:browser:map-perf": "tsx scripts/browser-map-performance.ts"
   },
   "devDependencies": {
