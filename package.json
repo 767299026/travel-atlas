@@ -45,7 +45,10 @@
     "test:browser:atlas-labels": "tsx scripts/browser-atlas-label-check.ts",
     "test:browser:memories": "tsx scripts/browser-footprint-memories-check.ts",
     "test:browser:city-picking": "tsx scripts/browser-city-picking-check.ts",
-    "test:browser:map-perf": "tsx scripts/browser-map-performance.ts"
+    "test:browser:map-perf": "tsx scripts/browser-map-performance.ts",
+    "prototype:export": "tsx scripts/export-opendesign.ts",
+    "prototype:review": "tsx scripts/review-opendesign.ts",
+    "prototype:install": "tsx scripts/install-opendesign.ts"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

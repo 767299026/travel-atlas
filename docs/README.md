@@ -9,6 +9,7 @@
 | [决策记录](decisions.md) | 已确认边界、初选、待验证与变更 | 新结论或方向变化 |
 | [产品与建设方案](product-plan.md) | 定位、使用端与管理端、业务对象、阶段 | 功能与范围讨论 |
 | [使用端原型设计](prototype-design.md) | 品牌、四个入口、流程、v1–v4 演进 | 页面评审与前端实现 |
+| [OpenDesign 静态反向同步](opendesign-static-sync.md) | 当前网页导出为可编辑 HTML／CSS、页面目录、备份与原型预览 | 同步页面与设计评审 |
 | [OpenDesign 提示词归档](opendesign-prompts.md) | v2–v4 修改提示词及后续约定 | 用户在 OpenDesign 迭代 |
 | [技术方案与选型](technical-plan.md) | 技术方向、候选、取舍与部署 | 框架、模块和部署设计 |
 | [地图与路径生成](maps-and-routing.md) | 地图分层、路线来源、坐标与授权 | 地图、轨迹与导出设计 |
