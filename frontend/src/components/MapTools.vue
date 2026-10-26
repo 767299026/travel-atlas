@@ -19,6 +19,7 @@ onBeforeUnmount(() => { document.removeEventListener('pointerdown', outside); do
         <button class="icon-button" :aria-label="labels[0]" :disabled="disabled || zoomInDisabled" @click="emit('zoomIn')"><AtlasIcon name="plus"/></button>
         <button class="icon-button" :aria-label="labels[1]" :disabled="disabled || zoomOutDisabled" @click="emit('zoomOut')"><AtlasIcon name="minus"/></button>
         <button class="icon-button" :aria-label="labels[2]" :disabled="disabled" @click="emit('reset')"><AtlasIcon name="locate"/></button>
+        <slot/>
       </div>
     </div>
   </div>

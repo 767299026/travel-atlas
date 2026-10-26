@@ -19,6 +19,29 @@ export function loadAMap(): Promise<any> {
   })().catch(e => { pending = null; throw e; });
   return pending;
 }
+// Coordinate conversion shares the supplier's QPS budget across map instances.
+let conversionQueue: Promise<unknown> = Promise.resolve(), lastConversionStarted = 0;
+function convertBatch(sdk: any, batch: Position[], type: string): Promise<Position[]> {
+  const run = async () => {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const wait = Math.max(0, 700 - (performance.now() - lastConversionStarted));
+      if (wait) await new Promise(resolve => setTimeout(resolve, wait));
+      lastConversionStarted = performance.now();
+      const response = await new Promise<{ status: string; result: any }>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('显示坐标转换超时，请重试；原始位置未改变。')), 12000);
+        sdk.convertFrom(batch.map(p => [...p]), type, (status: string, result: any) => { clearTimeout(timer); resolve({ status, result }); });
+      });
+      const { status, result } = response;
+      const rateLimited = /10021|10014|CUQPS|QPS_HAS_EXCEEDED/.test(String(result?.infocode ?? '') + ' ' + String(result?.info ?? result));
+      if (status !== 'complete' && rateLimited && attempt < 4) { await new Promise(resolve => setTimeout(resolve, 1000 * 2 ** attempt)); continue; }
+      const output = result?.locations?.map((p: any) => [p.getLng(), p.getLat()]);
+      if (status !== 'complete' || output?.length !== batch.length || !output.every(validPosition)) throw new Error('显示坐标转换失败，未混用不同坐标系。');
+      return output as Position[];
+    }
+    throw new Error('显示坐标转换繁忙，请稍后重试；原始位置未改变。');
+  };
+  const task = conversionQueue.then(run, run); conversionQueue = task.catch(() => {}); return task;
+}
 export function displayConverter(sdk: any) {
   const cache = new Map<string, Position>();
   return async (points: Position[], crs: string): Promise<Position[]> => {
@@ -27,13 +50,7 @@ export function displayConverter(sdk: any) {
     const missing = [...new Map(points.filter(p => !cache.has(type + ':' + p.join(','))).map(p => [p.join(','), p])).values()];
     for (let i = 0; i < missing.length; i += 40) {
       const batch = missing.slice(i, i + 40);
-      const converted = await new Promise<Position[]>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('显示坐标转换超时，请重试；原始位置未改变。')), 12000);
-        sdk.convertFrom(batch.map(p => [...p]), type, (status: string, result: any) => {
-          clearTimeout(timer); const output = result?.locations?.map((p: any) => [p.getLng(), p.getLat()]);
-          if (status !== 'complete' || output?.length !== batch.length || !output.every(validPosition)) { reject(new Error('显示坐标转换失败，未混用不同坐标系。')); return; } resolve(output);
-        });
-      });
+      const converted = await convertBatch(sdk, batch, type);
       converted.forEach((p, j) => cache.set(type + ':' + batch[j]!.join(','), p));
     }
     return points.map(p => cache.get(type + ':' + p.join(','))!);
