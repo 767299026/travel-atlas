@@ -35,3 +35,13 @@
 恢复原 v4 的方式：先通过项目 API 重新确认工程位置，再从该备份恢复 `index.html`、`DESIGN.md`、`index.html.artifact.json`。旧脚本、样式和素材未被移除，恢复旧入口后即可重新运行旧原型；无需删除新导出的页面。恢复或再次同步前先保留后来在 OpenDesign 中的新设计。
 
 后续显式同步可运行 `npm run prototype:export`。用普通静态服务器或 `file://` 打开导出目录，配置 `PROTOTYPE_REVIEW_URL` 后运行 `npm run prototype:review`；实际看完截图再执行 `npm run prototype:install`。安装校验本轮检查与导出时间一致，并比对原型入口摘要，避免覆盖导出期间另行修改的入口；它不是自动双向合并。默认浏览器依赖、`PLAYWRIGHT_MODULE`／`CHROME_PATH` 沿用现有浏览器验证方式。
+
+## OpenDesign 生成过程排错 · 2026-10-27
+
+用户反馈运行报错。只读检查当前实例健康接口、该项目生成事件与预览：服务正常，回忆改版任务仍在运行；事件中有两次图片处理失败，明确为 `ModuleNotFoundError: No module named 'PIL'`。此前任务已继续获取素材和生成页面，不能把这两条辅助工具报错等同于整个任务失败。
+
+在本机 Ubuntu 环境安装 `python3-pil`（Pillow 10.2.0；系统包版本 `10.2.0-1ubuntu1.3`）及三个依赖，未升级或移除其他包。以实际 `opendesign` 账号运行 `/usr/bin/python3`，成功导入 Pillow、解码三张已下载的示例图片并在内存中生成缩略图。未重跑素材下载脚本，避免覆盖正在生成的文件。
+
+安装期间系统的 `needrestart` 自动重启了 `agentdock.service` 和 `udisks2.service`；随后检查二者均为 `active`。OpenDesign daemon 与当前生成子进程保持运行，没有中断原任务。
+
+通过 OpenDesign 自身预览地址检查当时的 `memories.html`：页面可显示，未观察到页面脚本异常或 HTTP 资源加载失败；截图与检查结果在 Git 忽略的 `data/opendesign-errors-20261027/`。这是运行环境与当时页面的排错结果，不代表尚在生成中的照片回忆改版已全部验收。历史报错事件保留，不修改日志。

@@ -31,3 +31,7 @@ HTML／JS 原型可以复用，不意味着所有脚本都适合原样运行。�
 ## 2026-10-23 页面完善
 
 只读复查原型 app.js 的地图、地区／年份、城市记忆、标记到访、心愿与个人页；在本仓库新增 SVG 足迹首页、城市抽屉、心愿清单、个人统计／设置，并改进旅程与回忆筛选。原型地图投影及 SVG 组织作为参考改写为 Vue，用户内容使用 Vue 文本绑定，不迁移字符串 HTML 事件或示例数据。Natural Earth 世界参考图提取为约 194kB 的只读数据文件，DataV 国内几何按需缓存而不提交原始地图数据。详情见 [足迹与页面建设](footprints-and-pages.md)。
+
+## 2026-10-27 照片回忆参考
+
+OpenDesign 已独立更新 `memories.html`、`current/memories.js`、`current/memories-data.js` 与 `current/styles/memories.css`。本次只读吸收其页面分组、纸边照片墙、大图、小摘要以及地点短签／照片滴形样式，未复制进 Vue。原型的本地相册、示例坐标和行政区 SVG 地图不作为真实服务直接迁移；详情见 [照片回忆设计](photo-memories-design.md)。较早的网页静态导出包不能覆盖这些后续新设计。
