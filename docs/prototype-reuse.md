@@ -34,4 +34,4 @@ HTML／JS 原型可以复用，不意味着所有脚本都适合原样运行。�
 
 ## 2026-10-27 照片回忆参考
 
-OpenDesign 已独立更新 `memories.html`、`current/memories.js`、`current/memories-data.js` 与 `current/styles/memories.css`。本次只读吸收其页面分组、纸边照片墙、大图、小摘要以及地点短签／照片滴形样式，未复制进 Vue。原型的本地相册、示例坐标和行政区 SVG 地图不作为真实服务直接迁移；详情见 [照片回忆设计](photo-memories-design.md)。较早的网页静态导出包不能覆盖这些后续新设计。
+OpenDesign 已独立更新 `memories.html`、`current/memories.js`、`current/memories-data.js` 与 `current/styles/memories.css`。先只读吸收其页面分组、纸边照片墙、大图、小摘要以及地点短签／照片滴形样式；用户随后授权落地，已将 CSS 复制到 `frontend/src/styles/photo-memories.css` 并重写为 Vue／API 页面。原型的本地相册、示例坐标和行政区 SVG 地图不作为真实服务直接迁移；详情见 [照片回忆设计](photo-memories-design.md)。较早的网页静态导出包不能覆盖这些后续新设计。

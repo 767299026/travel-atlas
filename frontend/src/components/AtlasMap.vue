@@ -6,7 +6,7 @@ import type { AtlasCity, AtlasMap, AtlasConnection } from '../../../packages/con
 import MapTools from './MapTools.vue';
 import { atlasLabelPoint } from '../maps/atlasLabels';
 import { atlasPalette, atlasZoomLevels, containsAtlasPoint, type AtlasCamera } from '../maps/atlasNavigation';
-const props = defineProps<{ scope: string; places: AtlasCity[]; selected: string | null; camera?: AtlasCamera | null; navigationEnabled?: boolean; connections?: AtlasConnection[]; introToken?: number }>();
+const props = defineProps<{ scope: string; places: AtlasCity[]; selected: string | null; camera?: AtlasCamera | null; navigationEnabled?: boolean; connections?: AtlasConnection[]; introToken?: number; photoMode?: boolean }>();
 const emit = defineEmits<{ region: [code: string]; place: [key: string]; zoomScope: [code: string, camera: AtlasCamera] }>();
 const container = ref<HTMLElement>(), data = ref<AtlasMap | null>(null), loading = ref(false), error = ref(''), zoom = ref(1), visitedCount = ref(0);
 let library: typeof Leaflet, map: Leaflet.Map | undefined, regions: Leaflet.GeoJSON | undefined, pins: Leaflet.LayerGroup | undefined, labels: Leaflet.LayerGroup | undefined, generation = 0, disposed = false, homeZoom = 0, observer: ResizeObserver | undefined, resizeTimer: ReturnType<typeof setTimeout>;
@@ -95,6 +95,11 @@ function renderLabels() {
   if (!map || !pins || !labels || !library || !data.value) return; pins.clearLayers(); labels.clearLayers(); labelItems = [];
   const places = scopePlaces().sort((a, b) => Number(b.place.key === props.selected) - Number(a.place.key === props.selected) || b.records - a.records);
   for (const p of places) {
+    if (props.photoMode) {
+      const root = document.createElement('span'); root.className = 'photo-overview-sign'; root.textContent = p.place.name.replace(/市$/, '');
+      const marker = library.marker([p.place.center![1], p.place.center![0]], { icon: library.divIcon({ html: root, className: 'photo-overview-marker' + (props.selected === p.place.key ? ' selected' : ''), iconSize: [44, 44], iconAnchor: [22, 36] }), keyboard: true, title: p.place.name, zIndexOffset: 250 }).addTo(pins);
+      markName(marker, p.place.name + '，' + p.photos + ' 张照片'); marker.on('click', () => emit('place', p.place.key)); continue;
+    }
     const content = document.createElement('span'); content.className = 'atlas-place-content';
     const dot = document.createElement('span'); dot.className = 'pin-core'; const text = document.createElement('span'); text.className = 'pin-label'; text.textContent = p.place.name; content.append(dot, text);
     const marker = library.marker([p.place.center![1], p.place.center![0]], { icon: library.divIcon({ html: content, className: 'atlas-place-marker' + (p.records ? '' : ' wish') + (props.selected === p.place.key ? ' selected' : ''), iconSize: [14, 14], iconAnchor: [7, 7] }), keyboard: true, title: p.place.name, zIndexOffset: 200 }).addTo(pins);

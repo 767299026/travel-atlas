@@ -8,7 +8,7 @@ import { repository } from './repository.js';
 import { DomainError, applyCommands, canonicalJson, clone, isDate, type ActualCopyInput, type ActualCopyPreview, type Diary, type DiaryAssociation, type DiaryAssociationInput, type DiaryInput, type MediaItem, type RouteSnapshot, type Visit } from '../../packages/contracts/src/index.js';
 
 export function mediaItem(row: Database['schema']['media']['$inferSelect']): MediaItem {
-  return { id: row.id, filename: row.filename, width: row.width, height: row.height, originalBytes: row.originalBytes, storedBytes: row.storedBytes, createdAt: row.createdAt.toISOString(), previewUrl: `/api/v1/media/${row.id}/content?variant=preview`, thumbnailUrl: `/api/v1/media/${row.id}/content?variant=thumb`, originalUrl: `/api/v1/media/${row.id}/content?variant=original` };
+  return { id: row.id, filename: row.filename, width: row.width, height: row.height, originalBytes: row.originalBytes, storedBytes: row.storedBytes, createdAt: row.createdAt.toISOString(), previewUrl: `/api/v1/media/${row.id}/content?variant=preview`, thumbnailUrl: `/api/v1/media/${row.id}/content?variant=thumb`, originalUrl: `/api/v1/media/${row.id}/content?variant=original`, capture: row.capture ?? null };
 }
 export function records(database: Database, config: AppConfig) {
   const { db, schema: s } = database; const storage = repository(database).storage;
@@ -67,7 +67,9 @@ export function records(database: Database, config: AppConfig) {
     }
     const previous = await ex.select().from(s.diaryPhotos).where(eq(s.diaryPhotos.diaryId, diaryId));
     await ex.delete(s.diaryPhotos).where(eq(s.diaryPhotos.diaryId, diaryId));
-    const removedIds = previous.filter(p => !photos.some(n => n.mediaId === p.mediaId)).map(p => p.mediaId);
+    const album = await ex.select({ id: s.photoMemories.mediaId }).from(s.photoMemories).where(and(eq(s.photoMemories.ownerId, ownerId), eq(s.photoMemories.hidden, false)));
+    const retained = new Set(album.map(p => p.id));
+    const removedIds = previous.filter(p => !photos.some(n => n.mediaId === p.mediaId) && !retained.has(p.mediaId)).map(p => p.mediaId);
     if (removedIds.length) await ex.update(s.media).set({ state: 'deleted' }).where(inArray(s.media.id, removedIds));
     for (const [sortOrder, photo] of photos.entries()) await ex.insert(s.diaryPhotos).values({ id: randomUUID(), diaryId, mediaId: photo.mediaId, caption: photo.caption, sortOrder });
     return removedIds;

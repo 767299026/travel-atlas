@@ -43,6 +43,20 @@
       "when": 1792684839502,
       "tag": "0005_flashy_mojo",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1793094617494,
+      "tag": "0006_dusty_wendell_rand",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1793094874854,
+      "tag": "0007_nasty_arachne",
+      "breakpoints": true
     }
   ]
 }

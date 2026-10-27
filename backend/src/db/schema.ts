@@ -1,5 +1,5 @@
 import { mysqlTableCreator, varchar, text, mediumtext, double, int, boolean, datetime, json, mysqlEnum, uniqueIndex, index, foreignKey } from 'drizzle-orm/mysql-core';
-import type { Location, RouteSnapshot, TravelMode, CopySource, DiaryAssociation, RouteGeometry, PointSample, RoutingInput, RoutingInfo, ShareSnapshot, ShareBindings, AtlasPlace } from '../../../packages/contracts/src/index.js';
+import type { Location, RouteSnapshot, TravelMode, CopySource, DiaryAssociation, RouteGeometry, PointSample, RoutingInput, RoutingInfo, ShareSnapshot, ShareBindings, AtlasPlace, PhotoCapture, PhotoPlace } from '../../../packages/contracts/src/index.js';
 
 export function buildSchema(prefix = '') {
   const table = mysqlTableCreator(name => prefix + name);
@@ -64,7 +64,7 @@ export function buildSchema(prefix = '') {
   const media = table('media', {
     id: id(), ownerId: varchar('owner_id', { length: 36 }).notNull().references(() => users.id), filename: varchar('filename', { length: 200 }).notNull(), extension: varchar('extension', { length: 8 }).notNull(),
     width: int('width').notNull(), height: int('height').notNull(), originalBytes: int('original_bytes').notNull(), storedBytes: int('stored_bytes').notNull(), checksum: varchar('checksum', { length: 64 }).notNull(),
-    state: mysqlEnum('state', ['ready', 'deleted']).notNull().default('ready'), createdAt: created(),
+    state: mysqlEnum('state', ['ready', 'deleted']).notNull().default('ready'), capture: json('capture_metadata').$type<PhotoCapture | null>(), createdAt: created(),
   }, t => [index(prefix + 'media_owner_state_idx').on(t.ownerId, t.state)]);
   const diaryPhotos = table('diary_photos', {
     id: id(), diaryId: varchar('diary_id', { length: 36 }).notNull().references(() => diaries.id, { onDelete: 'cascade' }), mediaId: varchar('media_id', { length: 36 }).notNull().references(() => media.id), sortOrder: int('sort_order').notNull(), caption: varchar('caption', { length: 1000 }).notNull(),
@@ -101,6 +101,14 @@ export function buildSchema(prefix = '') {
     id: id(), ownerId: varchar('owner_id', { length: 36 }).notNull().references(() => users.id), kind: mysqlEnum('kind', ['visited', 'wish']).notNull(), placeKey: varchar('place_key', { length: 40 }).notNull(), place: json('place').$type<AtlasPlace>().notNull(),
     visitedOn: varchar('visited_on', { length: 10 }), note: text('note').notNull(), version: int('version').notNull().default(1), createdAt: created(),
   }, t => [index(prefix + 'place_owner_kind_idx').on(t.ownerId, t.kind), index(prefix + 'place_owner_key_idx').on(t.ownerId, t.placeKey)]);
-  return { users, sessions, journeys, routes, days, stops, segments, revisions, mutations, visits, diaries, media, diaryPhotos, auditEvents, geometries, routingJobs, routingCandidates, shares, placeRecords };
+  const photoMemories = table('photo_memories', {
+    mediaId: varchar('media_id', { length: 36 }).primaryKey().references(() => media.id), ownerId: varchar('owner_id', { length: 36 }).notNull().references(() => users.id),
+    takenOn: varchar('taken_on', { length: 10 }), place: json('place').$type<PhotoPlace | null>(), note: text('note').notNull(), hidden: boolean('hidden').notNull().default(false),
+    version: int('version').notNull().default(1), createdAt: created(), updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  }, t => [index(prefix + 'photo_owner_date_idx').on(t.ownerId, t.takenOn)]);
+  const photoNotes = table('photo_group_notes', {
+    id: id(), ownerId: varchar('owner_id', { length: 36 }).notNull().references(() => users.id), groupKey: varchar('group_key', { length: 500 }).notNull(), note: text('note').notNull(), version: int('version').notNull().default(1),
+  }, t => [uniqueIndex(prefix + 'photo_note_owner_group_uq').on(t.ownerId, t.groupKey)]);
+  return { users, sessions, journeys, routes, days, stops, segments, revisions, mutations, visits, diaries, media, diaryPhotos, auditEvents, geometries, routingJobs, routingCandidates, shares, placeRecords, photoMemories, photoNotes };
 }
-export const { users, sessions, journeys, routes, days, stops, segments, revisions, mutations, visits, diaries, media, diaryPhotos, auditEvents, geometries, routingJobs, routingCandidates, shares, placeRecords } = buildSchema();
+export const { users, sessions, journeys, routes, days, stops, segments, revisions, mutations, visits, diaries, media, diaryPhotos, auditEvents, geometries, routingJobs, routingCandidates, shares, placeRecords, photoMemories, photoNotes } = buildSchema();

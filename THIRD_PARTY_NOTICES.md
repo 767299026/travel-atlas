@@ -35,3 +35,7 @@ The China, province and world reference atlas reuses the existing Leaflet 1.9.4 
 ## Reference atlas label anchors
 
 Administrative names use [Mapbox polylabel](https://github.com/mapbox/polylabel) 2.1.0 to choose an interior point of the largest polygon component in Web Mercator. The anchor is computed once per feature; recorded visits retain their original coordinates. The package and its tinyqueue 3.0.0 dependency use ISC licenses, retained in [polylabel](licenses/polylabel-ISC.txt) and [tinyqueue](licenses/tinyqueue-ISC.txt). Checked 2026-10-23; exact versions are in the lockfile.
+
+## Photo memories and EXIF
+
+The user-maintained OpenDesign photo memories CSS (2026-10-27) is adapted in `frontend/src/styles/photo-memories.css`, with Vue components replacing the prototype scripts. Prototype photography and sample albums are excluded from the repository and production imports. EXIF extraction uses exifr 7.1.3 under the MIT license, retained in [exifr license](licenses/exifr-MIT.txt); exact dependency integrity is in the lockfile.

@@ -10,6 +10,7 @@ import { hashToken, randomToken, verifyPassword, dummyHash } from './security.js
 import { repository } from './repository.js';
 import { commandsSchema, createSchema, loginSchema, metadataSchema } from './schemas.js';
 import { DomainError, type CommandRequest, type JourneyCreate, type SessionData } from '../../packages/contracts/src/index.js';
+import { registerPhotoRoutes } from './photo-routes.js';
 import { registerRecordRoutes } from './record-routes.js';
 import { registerAdminRoutes } from './admin.js';
 import { registerMapRoutes } from './map-routes.js';
@@ -79,6 +80,7 @@ export async function buildApp(config: AppConfig, database: Database, dependenci
   app.get<{ Params: { id: string } }>('/api/v1/routes/:id', { preHandler: authenticate }, async request => response(request, await store.readRoute(request.auth!.user.id, request.params.id)));
   app.post<{ Params: { id: string }; Body: CommandRequest }>('/api/v1/routes/:id/commands', { preHandler: authenticate, schema: { body: commandsSchema } }, async request => response(request, await store.commands(request.auth!.user.id, request.params.id, request.body)));
   registerRecordRoutes(app, database, config, { authenticate, respond: response });
+  registerPhotoRoutes(app, database, config, { authenticate, respond: response });
   registerAdminRoutes(app, database, { authenticate, respond: response });
   registerMapRoutes(app, database, config, { authenticate, respond: response }, dependencies.mapFetch);
   registerRoutingRoutes(app, database, config, { authenticate, respond: response }, dependencies);

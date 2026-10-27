@@ -1,9 +1,10 @@
+import { readPhotoCapture } from './photo-capture.js';
 import sharp, { type Metadata, type OutputInfo } from 'sharp';
 import { randomUUID, createHash } from 'node:crypto';
 import { mkdir, writeFile, rm, stat, statfs, readdir } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { join } from 'node:path';
-import { and, eq, isNull, lt, sql } from 'drizzle-orm';
+import { and, eq, isNull, lt, sql, or } from 'drizzle-orm';
 import type { AppConfig } from './config.js';
 import type { Database } from './db/client.js';
 import { DomainError } from '../../packages/contracts/src/index.js';
@@ -61,7 +62,8 @@ export function mediaService(database: Database, config: AppConfig) {
           const previous = await storage.replay(ex, ownerId, 'media-upload', key, body); if (previous.found) return previous.response as { id: string };
           const [usage] = await ex.select({ bytes: sql<string>`COALESCE(SUM(${s.media.storedBytes}), 0)` }).from(s.media).where(and(eq(s.media.ownerId, ownerId), eq(s.media.state, 'ready')));
           if (Number(usage?.bytes ?? 0) + storedBytes > config.mediaQuotaBytes) throw new DomainError('MEDIA_QUOTA', '照片存储已达到个人配额，请先移除不需要的照片。', 413);
-          const row = { id, ownerId, filename: safeName, extension, width: preview.info.width, height: preview.info.height, originalBytes: buffer.length, storedBytes, checksum, state: 'ready' as const, createdAt: new Date() };
+          const capture = await readPhotoCapture(buffer);
+          const row = { capture, id, ownerId, filename: safeName, extension, width: preview.info.width, height: preview.info.height, originalBytes: buffer.length, storedBytes, checksum, state: 'ready' as const, createdAt: new Date() };
           await ex.insert(s.media).values(row); const result = mediaItem(row); await storage.remember(ex, ownerId, 'media-upload', key, body, result); return result;
         });
         saved = result.id === id; return mediaItem(await lookup(ownerId, result.id));
@@ -72,6 +74,7 @@ export function mediaService(database: Database, config: AppConfig) {
         await ex.select({ id: s.users.id }).from(s.users).where(eq(s.users.id, ownerId)).for('update');
         const [row] = await ex.select().from(s.media).where(and(eq(s.media.id, id), eq(s.media.ownerId, ownerId))).for('update');
         if (!row) throw new DomainError('NOT_FOUND', '图片不存在或无权删除。', 404);
+        if ((await ex.select().from(s.photoMemories).where(and(eq(s.photoMemories.mediaId, id), eq(s.photoMemories.hidden, false)))).length) throw new DomainError('PHOTO_IN_USE', '请先从回忆相册中移除这张照片。', 409);
         if ((await ex.select().from(s.diaryPhotos).where(eq(s.diaryPhotos.mediaId, id))).length) throw new DomainError('PHOTO_IN_USE', '请在日记中移除照片并保存，再删除图片。', 409);
         await ex.update(s.media).set({ state: 'deleted' }).where(eq(s.media.id, id));
       });
@@ -80,7 +83,7 @@ export function mediaService(database: Database, config: AppConfig) {
     async cleanRemoved(ids: string[]) { for (const id of ids) await files.remove(id).catch(() => {}); },
     async cleanup() {
       const cutoff = new Date(Date.now() - 7 * 86400000);
-      const orphans = await db.select({ id: s.media.id, state: s.media.state }).from(s.media).leftJoin(s.diaryPhotos, eq(s.diaryPhotos.mediaId, s.media.id)).where(and(isNull(s.diaryPhotos.id), lt(s.media.createdAt, cutoff)));
+      const orphans = await db.select({ id: s.media.id, state: s.media.state }).from(s.media).leftJoin(s.diaryPhotos, eq(s.diaryPhotos.mediaId, s.media.id)).leftJoin(s.photoMemories, eq(s.photoMemories.mediaId, s.media.id)).where(and(isNull(s.diaryPhotos.id), or(isNull(s.photoMemories.mediaId), eq(s.photoMemories.hidden, true)), lt(s.media.createdAt, cutoff)));
       let removed = 0;
       for (const row of orphans) { await this.remove((await db.select({ owner: s.media.ownerId }).from(s.media).where(eq(s.media.id, row.id)))[0]!.owner, row.id); removed++; }
       for (const row of await db.select({ id: s.media.id }).from(s.media).where(eq(s.media.state, 'deleted'))) await files.remove(row.id);

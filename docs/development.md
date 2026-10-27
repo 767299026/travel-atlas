@@ -216,3 +216,12 @@ M3 的 `npm run test:browser:m3` 与真实服务 `npm run test:browser:amap` 复
 ## 足迹卡片、路线联动与年度回顾（2026-10-23）
 
 新增 `npm run test:browser:memories`，复用独立前缀表、媒体与浏览器端口；与其他浏览器夹具顺序运行。覆盖照片来源、直接城市进入、路径／到访双向选择、尺寸变化保持相机、年份、跨城入场及中断／减少动态效果。API 增量均为只读响应，不需要表迁移。详细设计、自审与真实域名截图见 [足迹参考及实现记录](amap-footprints-reference.md)。
+
+
+## 2026-10-27 照片回忆更新
+
+当前回忆入口为照片墙／照片地图，旧日记列表移至 `/journals`，原详情与编辑地址保留。照片 API 和独立持久化、EXIF／坐标与媒体生命周期见 [照片回忆](photo-memories-design.md)。新增 `0006`／`0007` 两次增量迁移，当前 21 张业务表及账本。部署前运行 `npm run db:backup`，然后 `npm run db:migrate`；迁移不重写旧日记资料。
+
+验证命令：`npm run typecheck`、`npm test`、`npm run test:browser:photos`。照片浏览器脚本使用临时库前缀及临时媒体目录，结束清理；与其他浏览器脚本共享端口，必须顺序执行。`FRONTEND_TEST_DIST` 可指向隔离构建。`REAL_AMAP=true BROWSER_SOFTWARE_VECTOR=true` 时，HTTPS 域名下所有业务 API 拦截到临时后端，真实 SDK 访问供应商；不能把这个模式误当作本人数据联调。默认生成摄影替身；只有显式指定 `PHOTO_REVIEW_ASSETS` 才读取本机原型的摄影样本，不写生产资料。
+
+服务继续使用 `travel-atlas-api` 与 `travel-atlas-web` 两个 screen，原管理端、区域路由与 OpenResty 保持现状。发布保存旧 API 与前端构建，并保留旧哈希静态资源以兼容已打开页面；健康检查失败时恢复旧构建。本轮数据库字段／表为增量添加，旧代码回退无需删除新资料表。备份、发布路径、数据指纹及私有截图仅在忽略的 `data/` 下记录；数据库备份未执行恢复演练，完整灾备仍待后续。

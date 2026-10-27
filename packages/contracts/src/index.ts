@@ -153,3 +153,5 @@ export function applyCommands(input: RouteSnapshot, operations: RouteCommand[], 
 }
 export * from './shares.js';
 export * from './atlas.js';
+
+export * from './photos.js';

@@ -29,7 +29,7 @@ export const draftId = () => 'draft:' + mutationId();
 export async function uploadPhoto(file: File, key: string) {
   const body = new FormData(); body.set('file', file); let response: Response;
   try { response = await fetch('/api/v1/media', { method: 'POST', credentials: 'same-origin', body, headers: { 'X-CSRF-Token': session.value?.csrfToken ?? '', 'X-Upload-Id': key } }); }
-  catch { throw new ApiError('UPLOAD_FAILED', '照片上传连接失败，可重试；已填写的日记会保留。', 0); }
+  catch { throw new ApiError('UPLOAD_FAILED', '照片上传连接失败，可重试；已填写的照片信息会保留。', 0); }
   let payload; try { payload = await response.json(); } catch { throw new ApiError('UPLOAD_FAILED', '照片上传未确认，请重试。', response.status); }
   if (!response.ok) { if (response.status === 401) session.value = null; throw new ApiError(payload.error?.code ?? 'UPLOAD_FAILED', payload.error?.message ?? '照片上传失败，请重试。', response.status); }
   return payload.data as import('../../packages/contracts/src/index.js').MediaItem;

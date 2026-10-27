@@ -22,7 +22,7 @@ const router = createRouter({ history: createWebHistory(), routes: [
   { path: '/journeys/:id/actual/map', component: () => import('./views/RouteMap.vue') },
   { path: '/journeys/:id/share', component: () => import('./views/JourneyShare.vue') },
   { path: '/s/:id', component: () => import('./views/ShareRead.vue'), meta: { public: true } },
-  { path: '/memories', component: Memories },
+  { path: '/memories', component: Memories }, { path: '/journals', component: () => import('./views/JournalList.vue') },
   { path: '/diaries/new', component: () => import('./views/DiaryEditor.vue') },
   { path: '/diaries/:id', component: () => import('./views/DiaryRead.vue') },
   { path: '/diaries/:id/edit', component: () => import('./views/DiaryEditor.vue') },

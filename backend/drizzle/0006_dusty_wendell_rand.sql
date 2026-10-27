@@ -1,0 +1,1 @@
+ALTER TABLE `media` ADD `capture_metadata` json;

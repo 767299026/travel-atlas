@@ -48,7 +48,8 @@
     "test:browser:map-perf": "tsx scripts/browser-map-performance.ts",
     "prototype:export": "tsx scripts/export-opendesign.ts",
     "prototype:review": "tsx scripts/review-opendesign.ts",
-    "prototype:install": "tsx scripts/install-opendesign.ts"
+    "prototype:install": "tsx scripts/install-opendesign.ts",
+    "test:browser:photos": "tsx scripts/browser-photo-memories-check.ts"
   },
   "devDependencies": {
     "@types/node": "24.10.1",
