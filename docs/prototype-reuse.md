@@ -35,3 +35,7 @@ HTML／JS 原型可以复用，不意味着所有脚本都适合原样运行。�
 ## 2026-10-27 照片回忆参考
 
 OpenDesign 已独立更新 `memories.html`、`current/memories.js`、`current/memories-data.js` 与 `current/styles/memories.css`。先只读吸收其页面分组、纸边照片墙、大图、小摘要以及地点短签／照片滴形样式；用户随后授权落地，已将 CSS 复制到 `frontend/src/styles/photo-memories.css` 并重写为 Vue／API 页面。原型的本地相册、示例坐标和行政区 SVG 地图不作为真实服务直接迁移；详情见 [照片回忆设计](photo-memories-design.md)。较早的网页静态导出包不能覆盖这些后续新设计。
+
+## 2026-10-29 旅程工作区
+
+读取并复制修正版 `current/styles/journey-workspace-revised.css` 到 `frontend/src/styles/journey-workspace.css`，按原型的清单、搜索、分天、撤销和更多菜单转为 Vue 组件。原型本地 JS、示例搜索库、摄影和 OSM 参考摘录不进入业务服务；实际地图沿用高德 SDK。保存与删除使用真实接口，原型工程保持只读。来源与验证见 [工作区落地](journey-workspace-implementation.md)。

@@ -1,17 +1,17 @@
 import { Type as T } from '@sinclair/typebox';
 
-const object = (properties: Parameters<typeof T.Object>[0]) => T.Object(properties, { additionalProperties: false });
+export const object = (properties: Parameters<typeof T.Object>[0]) => T.Object(properties, { additionalProperties: false });
 const text = (maxLength: number, minLength = 0) => T.String({ maxLength, minLength });
 const nullable = <X extends ReturnType<typeof T.String> | ReturnType<typeof T.Object>>(schema: X) => T.Union([schema, T.Null()]);
 const id = text(80, 1);
 const date = nullable(T.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }));
 const mode = T.Union(['unknown', 'walk', 'hike', 'drive', 'transit', 'rail', 'flight', 'bike', 'boat', 'other'].map(x => T.Literal(x)));
 const location = nullable(object({ longitude: T.Number({ minimum: -180, maximum: 180 }), latitude: T.Number({ minimum: -90, maximum: 90 }), crs: T.Union(['WGS84', 'GCJ02', 'BD09'].map(x => T.Literal(x))), source: T.Optional(T.Union(['manual_coordinate', 'amap_pick', 'gpx_endpoint', 'outdoor_pick'].map(x => T.Literal(x)))) }));
-const stopFields = {
+export const stopFields = {
   label: text(160, 1), region: text(120), time: nullable(T.String({ pattern: '^([01]\\d|2[0-3]):[0-5]\\d$' })),
   note: text(10000), role: T.Union(['departure', 'visit', 'waypoint', 'transfer', 'overnight'].map(x => T.Literal(x))), location,
 };
-const dayFields = { title: text(80), area: text(120), date, stayName: text(160) };
+export const dayFields = { title: text(80), area: text(120), date, stayName: text(160) };
 const command = T.Union([
   object({ type: T.Literal('add_day'), clientRef: id, title: dayFields.title, area: dayFields.area, date }),
   object({ type: T.Literal('update_day'), dayId: id, patch: T.Partial(object(dayFields)) }),

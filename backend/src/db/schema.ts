@@ -18,6 +18,7 @@ export function buildSchema(prefix = '') {
     id: id(), ownerId: varchar('owner_id', { length: 36 }).notNull().references(() => users.id),
     title: varchar('title', { length: 80 }).notNull(), destinations: json('destinations').$type<string[]>().notNull(),
     status: mysqlEnum('status', ['planning', 'completed', 'archived']).notNull().default('planning'),
+    planningPreferences: json('planning_preferences').$type<import('../../../packages/contracts/src/workspace.js').PlanningPreferences | null>(),
     timezone: varchar('timezone', { length: 64 }).notNull().default('Asia/Shanghai'), version: int('version').notNull().default(1), createdAt: created(), updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
   }, t => [index(prefix + 'journeys_owner_created_idx').on(t.ownerId, t.createdAt)]);
   const routes = table('journey_routes', {
@@ -26,6 +27,7 @@ export function buildSchema(prefix = '') {
     version: int('version').notNull().default(1), note: text('note').notNull(), copiedFrom: json('copied_from').$type<CopySource | null>(), createdAt: created(), updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
   }, t => [uniqueIndex(prefix + 'routes_journey_layer_uq').on(t.journeyId, t.layer), index(prefix + 'routes_owner_idx').on(t.ownerId)]);
   const days = table('route_days', {
+    unscheduled: boolean('is_unscheduled').notNull().default(false),
     id: id(), routeId: varchar('route_id', { length: 36 }).notNull().references(() => routes.id, { onDelete: 'cascade' }), sortOrder: int('sort_order').notNull(),
     title: varchar('title', { length: 80 }).notNull(), area: varchar('area', { length: 120 }).notNull(), date: varchar('local_date', { length: 10 }), stayName: varchar('stay_name', { length: 160 }).notNull(), copiedFrom: json('copied_from').$type<CopySource | null>(),
   }, t => [index(prefix + 'days_route_order_idx').on(t.routeId, t.sortOrder)]);

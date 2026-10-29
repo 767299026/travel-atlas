@@ -1,0 +1,28 @@
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import type { AtlasCatalog, Location, RouteStop } from '../../../packages/contracts/src/index.js';
+import { searchPlaces, type PlaceResult } from '../maps/placeSearch';
+import { loadAtlasCatalog } from '../atlasCatalog';
+import { errorText } from '../api';
+import ModalSheet from './ModalSheet.vue';
+import AtlasIcon from './AtlasIcon.vue';
+import JourneyMap from './JourneyMap.vue';
+const props=defineProps<{city:string;target:string;added:string[];count:number;locating?:boolean}>();
+const emit=defineEmits<{close:[];toggle:[place:PlaceResult];update:[place:PlaceResult]}>();
+const query=ref(''),city=ref(props.city),cityDraft=ref(props.city),results=ref<PlaceResult[]>([]),catalog=ref<AtlasCatalog>(),busy=ref(false),error=ref(''),cityEditor=ref(false),refining=ref<PlaceResult>(),picked=ref<Location|null>(null);
+let timer:ReturnType<typeof setTimeout>|undefined,generation=0,disposed=false;
+async function search(){const current=++generation;results.value=[];error.value='';if(!query.value.trim()){busy.value=false;return;}busy.value=true;try{const c=catalog.value||await loadAtlasCatalog();catalog.value=c;const items=await searchPlaces(query.value.trim(),city.value,c);if(!disposed&&current===generation)results.value=items;}catch(e){if(!disposed&&current===generation)error.value=errorText(e);}finally{if(current===generation)busy.value=false;}}
+function input(){clearTimeout(timer);generation++;results.value=[];busy.value=!!query.value.trim();timer=setTimeout(search,350);}
+function startRefine(place:PlaceResult){refining.value=place;picked.value=place.location;}
+function doneRefine(){if(!refining.value||!picked.value)return;emit('update',{...refining.value,location:picked.value});refining.value=undefined;}
+const manual=computed<PlaceResult>(()=>({id:'manual:'+city.value+':'+query.value.trim(),name:query.value.trim(),city:city.value,address:'',location:null,...(catalog.value?.cities.find(c=>c.name.replace(/市$/,'')===city.value.replace(/市$/,''))?{place:{countryCode:'CHN',areaCode:catalog.value!.cities.find(c=>c.name.replace(/市$/,'')===city.value.replace(/市$/,''))!.code}}:{})}));
+const refinePoints=computed<RouteStop[]>(()=>refining.value?[{id:refining.value.id,label:refining.value.name,region:refining.value.address,time:null,note:'',role:'visit',location:refining.value.location}]:[]);
+onMounted(async()=>{try{catalog.value=await loadAtlasCatalog();}catch{}});onBeforeUnmount(()=>{disposed=true;generation++;clearTimeout(timer)});
+</script>
+<template><ModalSheet :class="{'journey-search-dialog':!refining&&!cityEditor}" :title="refining ? '微调这个地点' : cityEditor ? '在哪座城市找？' : '添加地点'" @close="refining ? refining = undefined : cityEditor ? cityEditor = false : emit('close')">
+<template v-if="cityEditor"><label class="pl-field"><span>搜索城市（可留空，搜索全国）</span><input v-model="cityDraft" list="journey-city-options" placeholder="武汉市、上海市…"><datalist id="journey-city-options"><option v-for="c in catalog?.cities" :key="c.code" :value="c.name"/></datalist></label><button class="pl-primary" @click="city = cityDraft.trim();cityEditor = false;search()">使用这个范围</button></template>
+<template v-else-if="refining"><p class="pl-panel-copy">{{ refining.name }} · 移动地图，让中心标记对准目的地或入口。</p><div class="journey-refine-map"><JourneyMap :points="refinePoints" :city="refining.city" refine @pick="picked = $event"/></div></template>
+<template v-else><div class="pl-search-target"><span>加入：{{ target }}</span><button class="pl-text-button" @click="cityDraft = city;cityEditor = true">{{ city || '全国' }}<AtlasIcon name="chevronDown"/></button></div><label class="pl-field journey-search-field"><span>搜索地点名称</span><div class="pl-search-box"><AtlasIcon name="search"/><input v-model="query" type="search" aria-label="搜索地点名称" placeholder="景点、街道或想去的地方" maxlength="100" @input="input" @keydown.enter.prevent="search"></div></label><p v-if="busy" class="pl-panel-copy" role="status">正在寻找地点…</p><p v-if="error" class="pl-error" role="alert">{{ error }}<button class="pl-text-button" @click="search">重试搜索</button></p>
+<div class="journey-search-results"><article v-for="place in results" :key="place.id" class="pl-result" :class="{'pl-result-added':added.includes(place.id)}"><button class="pl-result-main" :aria-label="(locating ? '选择位置：' : added.includes(place.id) ? '取消加入：' : '加入：') + place.name + ' · ' + place.city + ' · ' + place.address" @click="emit('toggle',place)"><span class="journey-result-pin"><AtlasIcon name="pin"/></span><span class="od-field"><strong>{{ place.name }}</strong><small>{{ place.city }} · {{ place.address }}</small><span class="pl-result-state">{{ locating ? '选择这个位置' : added.includes(place.id) ? '已加入 · 点击取消' : '点选加入' }}</span></span></button><button v-if="place.location" class="pl-result-refine" :aria-label="'微调' + place.name + '的位置'" @click="startRefine(place)"><AtlasIcon name="locate"/></button></article><div v-if="!busy && !results.length" class="pl-search-empty"><p>{{ query ? '先记下名字，位置也可以以后再补。' : '搜索想去的地方，可以连续加入。' }}</p><button v-if="query.trim() && !locating" class="pl-secondary" @click="emit('toggle',manual)">{{ added.includes(manual.id) ? '已加入 · 点击取消' : '先记下“' + query.trim() + '”' }}</button></div></div></template>
+<template #footer><div class="journey-search-footer"><button v-if="refining || cityEditor" class="pl-secondary" @click="refining = undefined;cityEditor = false">返回搜索</button><small v-else>当前 {{ count }} 个地点 · 可继续搜索</small><button class="pl-primary" @click="refining ? doneRefine() : emit('close')">{{ refining ? '确认位置并加入' : '完成' }}</button></div></template>
+</ModalSheet></template>

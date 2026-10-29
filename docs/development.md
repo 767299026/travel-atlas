@@ -225,3 +225,12 @@ M3 的 `npm run test:browser:m3` 与真实服务 `npm run test:browser:amap` 复
 验证命令：`npm run typecheck`、`npm test`、`npm run test:browser:photos`。照片浏览器脚本使用临时库前缀及临时媒体目录，结束清理；与其他浏览器脚本共享端口，必须顺序执行。`FRONTEND_TEST_DIST` 可指向隔离构建。`REAL_AMAP=true BROWSER_SOFTWARE_VECTOR=true` 时，HTTPS 域名下所有业务 API 拦截到临时后端，真实 SDK 访问供应商；不能把这个模式误当作本人数据联调。默认生成摄影替身；只有显式指定 `PHOTO_REVIEW_ASSETS` 才读取本机原型的摄影样本，不写生产资料。
 
 服务继续使用 `travel-atlas-api` 与 `travel-atlas-web` 两个 screen，原管理端、区域路由与 OpenResty 保持现状。发布保存旧 API 与前端构建，并保留旧哈希静态资源以兼容已打开页面；健康检查失败时恢复旧构建。本轮数据库字段／表为增量添加，旧代码回退无需删除新资料表。备份、发布路径、数据指纹及私有截图仅在忽略的 `data/` 下记录；数据库备份未执行恢复演练，完整灾备仍待后续。
+
+
+## 2026-10-29 旅程工作区
+
+普通 `/journeys`、`/journeys/new` 和 `/journeys/:id` 使用新工作区；旧详细计划保留在 `/journeys/:id/edit`，实际记录、GPX、分享和日记地址继续可用。新增 `0008` 迁移仅加 `route_days.is_unscheduled` 与 `journeys.planning_preferences`，业务表仍为 21 张。正式执行前备份，增量列允许旧构建回退。
+
+`npm run test:browser:workspace` 检查实际 API／Vue 与隔离地图交互；`npm run test:browser:workspace-real` 在 HTTPS 域名上下文访问真实高德搜索与底图，业务请求全部转发到临时库后端。使用 `PLAYWRIGHT_MODULE`／`FRONTEND_TEST_DIST` 指定本机工具与隔离构建，真实 SDK 在无 GPU 浏览器中需 `BROWSER_SOFTWARE_VECTOR=true`。所有浏览器套件共用临时端口，顺序运行；测试结束删除临时表和媒体。模型、自动保存／冲突、删除范围与两轮自审见 [旅程工作区](journey-workspace-implementation.md)。
+
+发布继续使用 screen，保留旧 API／前端构建与旧哈希静态资源，健康检查失败恢复构建，不自动回退或删除新列。实际发布路径、SQL 备份、数据指纹、验证截图只存忽略的 `data/journey-workspace-20261029/`。不改管理端、BRouter、反代和 OpenDesign 原型。

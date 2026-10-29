@@ -1,8 +1,7 @@
 import { createApp } from 'vue';
 import { createRouter, createWebHistory } from 'vue-router';
 import App from './App.vue';
-import JourneyList from './views/JourneyList.vue';
-import JourneyCreate from './views/JourneyCreate.vue';
+import JourneyWorkspace from './views/JourneyWorkspace.vue';
 import JourneyEditor from './views/JourneyEditor.vue';
 import Profile from './views/Profile.vue';
 import Memories from './views/Memories.vue';
@@ -12,11 +11,12 @@ import './styles/prototype-journeys.css';
 import './styles/app.css';
 import './styles/atlas.css';
 const router = createRouter({ history: createWebHistory(), routes: [
-  { path: '/', redirect: '/map' }, { path: '/journeys', component: JourneyList },
+  { path: '/', redirect: '/map' }, { path: '/journeys', component: JourneyWorkspace },
   { path: '/map', component: () => import('./views/Footprints.vue') },
   { path: '/wishes', component: () => import('./views/Wishes.vue'), meta: { compact: true } },
   { path: '/settings', component: () => import('./views/Settings.vue'), meta: { compact: true } },
-  { path: '/journeys/new', component: JourneyCreate }, { path: '/journeys/:id', component: JourneyEditor },
+  { path: '/journeys/new', component: JourneyWorkspace }, { path: '/journeys/:id', component: JourneyWorkspace },
+  { path: '/journeys/:id/edit', component: JourneyEditor },
   { path: '/journeys/:id/actual', component: JourneyEditor },
   { path: '/journeys/:id/map', component: () => import('./views/RouteMap.vue') },
   { path: '/journeys/:id/actual/map', component: () => import('./views/RouteMap.vue') },

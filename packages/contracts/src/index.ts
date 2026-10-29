@@ -8,7 +8,7 @@ export interface Location { longitude: number; latitude: number; crs: 'WGS84' | 
 export interface StopInput { label: string; region: string; time: string | null; note: string; role: 'departure' | 'visit' | 'waypoint' | 'transfer' | 'overnight'; location: Location | null }
 export interface CopySource { routeId: string; version: number; id?: string }
 export interface RouteStop extends StopInput { id: string; copiedFrom?: CopySource | null }
-export interface RouteDay { id: string; title: string; area: string; date: string | null; stayName: string; stops: RouteStop[]; copiedFrom?: CopySource | null }
+export interface RouteDay { unscheduled?: boolean; id: string; title: string; area: string; date: string | null; stayName: string; stops: RouteStop[]; copiedFrom?: CopySource | null }
 export interface RouteSegment {
   id: string; fromStopId: string; toStopId: string; kind: 'travel' | 'gap'; mode: TravelMode;
   geometryStatus: 'missing' | 'ready' | 'stale'; reviewStatus: 'unreviewed' | 'needs_attention' | 'confirmed';
@@ -80,7 +80,7 @@ export function applyCommands(input: RouteSnapshot, operations: RouteCommand[], 
   };
   const reconcile = () => {
     const old = new Map(route.segments.map(s => [`${s.fromStopId}|${s.toStopId}`, s]));
-    const all = route.days.flatMap(d => d.stops); const next: RouteSegment[] = [];
+    const all = route.days.filter(d => !d.unscheduled).flatMap(d => d.stops); const next: RouteSegment[] = [];
     for (let i = 1; i < all.length; i++) {
       const from = all[i - 1]!, to = all[i]!; const key = `${from.id}|${to.id}`;
       next.push(old.get(key) ?? { id: allocate(), fromStopId: from.id, toStopId: to.id, kind: 'gap', mode: 'unknown', geometryStatus: 'missing', reviewStatus: 'unreviewed', geometryRef: null, geometryLocked: false });
@@ -144,7 +144,7 @@ export function applyCommands(input: RouteSnapshot, operations: RouteCommand[], 
     }
     reconcile();
   }
-  if (route.days.length > 30 || route.days.flatMap(d => d.stops).length > 200) throw new DomainError('LIMIT_EXCEEDED', '每条路线最多安排 30 天、200 个地点。');
+  if (route.days.filter(d => !d.unscheduled).length > 30 || route.days.flatMap(d => d.stops).length > 200) throw new DomainError('LIMIT_EXCEEDED', '每条路线最多安排 30 天、200 个地点。');
   for (const d of route.days) {
     if (!isDate(d.date)) throw new DomainError('INVALID_DATE', '请填写有效的出行日期。');
     for (const p of d.stops) if (!p.label.trim()) throw new DomainError('VALIDATION_ERROR', '地点名称不能为空。');
@@ -155,3 +155,5 @@ export * from './shares.js';
 export * from './atlas.js';
 
 export * from './photos.js';
+
+export * from './workspace.js';

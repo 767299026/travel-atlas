@@ -39,3 +39,7 @@ Administrative names use [Mapbox polylabel](https://github.com/mapbox/polylabel)
 ## Photo memories and EXIF
 
 The user-maintained OpenDesign photo memories CSS (2026-10-27) is adapted in `frontend/src/styles/photo-memories.css`, with Vue components replacing the prototype scripts. Prototype photography and sample albums are excluded from the repository and production imports. EXIF extraction uses exifr 7.1.3 under the MIT license, retained in [exifr license](licenses/exifr-MIT.txt); exact dependency integrity is in the lockfile.
+
+## Journey workspace
+
+The user-maintained revised OpenDesign journey workspace CSS is adapted in `frontend/src/styles/journey-workspace.css` (2026-10-29), retaining the established prototype style notices. Its local demonstration search library, photographs, and OpenStreetMap reference extracts are not imported. The Vue application uses the existing authenticated AMap JS SDK integration with visible provider attribution. See [implementation notes](docs/journey-workspace-implementation.md).

@@ -1,6 +1,6 @@
 # 设计与技术文档索引
 
-最近整理：2026-10-27。
+最近整理：2026-10-29。
 
 整合从产品构思、OpenDesign v1–v4 到技术可行性讨论的结果。后续优先引用主题文档；历史提示词用于理解迭代背景，当前需求以产品和设计文档为准。
 
@@ -11,6 +11,9 @@
 | [使用端原型设计](prototype-design.md) | 品牌、四个入口、流程、v1–v4 演进 | 页面评审与前端实现 |
 | [OpenDesign 静态反向同步](opendesign-static-sync.md) | 当前网页导出为可编辑 HTML／CSS、页面目录、备份与原型预览 | 同步页面与设计评审 |
 | [OpenDesign 提示词归档](opendesign-prompts.md) | v2–v4 修改提示词及后续约定 | 用户在 OpenDesign 迭代 |
+| [旅程工作区落地](journey-workspace-implementation.md) | Vue／MySQL 工作区、真实地图搜索、自动保存、补记与删除、两轮审核及发布 | 旅程实现与验证 |
+| [旅程原型提示词](journey-prototype-prompt.md) | 轻量新建、搜索连续添加、待安排／分天、批量整理与删除撤销的首版原型 | 旅程原型预览与评审 |
+| [旅程交互反思与案例](journey-interaction-review.md) | 用户反馈、现实案例、轻量流程与新版原型两轮实操评审 | 旅程交互讨论；落地见工作区专题 |
 | [照片回忆设计](photo-memories-design.md) | 已实现照片墙／地图、大图、独立批量上传、EXIF 建议与手工定位、旧日记兼容、两轮自审；含提示词归档 | 回忆板块设计与原型评审 |
 | [技术方案与选型](technical-plan.md) | 技术方向、候选、取舍与部署 | 框架、模块和部署设计 |
 | [地图与路径生成](maps-and-routing.md) | 地图分层、路线来源、坐标与授权 | 地图、轨迹与导出设计 |

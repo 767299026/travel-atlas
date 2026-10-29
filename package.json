@@ -49,7 +49,9 @@
     "prototype:export": "tsx scripts/export-opendesign.ts",
     "prototype:review": "tsx scripts/review-opendesign.ts",
     "prototype:install": "tsx scripts/install-opendesign.ts",
-    "test:browser:photos": "tsx scripts/browser-photo-memories-check.ts"
+    "test:browser:photos": "tsx scripts/browser-photo-memories-check.ts",
+    "test:browser:workspace": "tsx scripts/browser-workspace-check.ts",
+    "test:browser:workspace-real": "tsx scripts/browser-workspace-real-check.ts"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

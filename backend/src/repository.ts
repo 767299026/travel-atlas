@@ -16,7 +16,7 @@ export function repository(database: Database) {
     const order = new Map(days.flatMap(d => stops.filter(p => p.dayId === d.id).map(p => p.id)).map((id, index) => [id, index]));
     segments.sort((a, b) => (order.get(a.fromStopId) ?? 0) - (order.get(b.fromStopId) ?? 0));
     return { id, journeyId: route.journeyId, layer: route.layer, version: route.version, note: route.note, copiedFrom: route.copiedFrom,
-      days: days.map(d => ({ id: d.id, title: d.title, area: d.area, date: d.date, stayName: d.stayName, copiedFrom: d.copiedFrom, stops: stops.filter(p => p.dayId === d.id).map(p => ({ id: p.id, label: p.label, region: p.region, time: p.time, note: p.note, role: p.role, location: p.location, copiedFrom: p.copiedFrom })) })),
+      days: days.map(d => ({ ...(d.unscheduled ? { unscheduled: true } : {}), id: d.id, title: d.title, area: d.area, date: d.date, stayName: d.stayName, copiedFrom: d.copiedFrom, stops: stops.filter(p => p.dayId === d.id).map(p => ({ id: p.id, label: p.label, region: p.region, time: p.time, note: p.note, role: p.role, location: p.location, copiedFrom: p.copiedFrom })) })),
       segments: segments.map(({ routeId: _, ...segment }) => segment) };
   }
   async function summary(executor: DbExecutor, ownerId: string, id: string): Promise<JourneySummary> {
@@ -25,8 +25,8 @@ export function repository(database: Database) {
     const routes = await executor.select().from(s.routes).where(eq(s.routes.journeyId, id));
     const plan = routes.find(r => r.layer === 'plan');
     if (!plan) throw new Error('Missing plan route');
-    const days = await executor.select({ id: s.days.id }).from(s.days).where(eq(s.days.routeId, plan.id));
-    const { ownerId: _, createdAt, updatedAt, ...fields } = journey;
+    const days = await executor.select({ id: s.days.id }).from(s.days).where(and(eq(s.days.routeId, plan.id), eq(s.days.unscheduled, false)));
+    const { ownerId: _, planningPreferences: _preferences, createdAt, updatedAt, ...fields } = journey;
     return { ...fields, createdAt: createdAt.toISOString(), updatedAt: updatedAt.toISOString(), planRouteId: plan.id, actualRouteId: routes.find(r => r.layer === 'actual')?.id ?? null, dayCount: days.length };
   }
   async function replay(executor: DbExecutor, ownerId: string, scope: string, key: string, body: unknown) {
@@ -51,7 +51,7 @@ export function repository(database: Database) {
     const currentDays = await executor.select().from(s.days).where(eq(s.days.routeId, route.id));
     const currentStops = await executor.select().from(s.stops).where(eq(s.stops.routeId, route.id));
     for (const [sortOrder, day] of route.days.entries()) {
-      const values = { routeId: route.id, sortOrder, title: day.title, area: day.area, date: day.date, stayName: day.stayName, copiedFrom: day.copiedFrom ?? null };
+      const values = { routeId: route.id, sortOrder, unscheduled: !!day.unscheduled, title: day.title, area: day.area, date: day.date, stayName: day.stayName, copiedFrom: day.copiedFrom ?? null };
       await executor.insert(s.days).values({ id: day.id, ...values }).onDuplicateKeyUpdate({ set: values });
     }
     for (const day of route.days) for (const [sortOrder, stop] of day.stops.entries()) {

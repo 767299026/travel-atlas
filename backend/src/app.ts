@@ -1,3 +1,4 @@
+import { registerWorkspaceRoutes } from './workspace-routes.js';
 import Fastify, { type FastifyRequest } from 'fastify';
 import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
@@ -81,6 +82,7 @@ export async function buildApp(config: AppConfig, database: Database, dependenci
   app.post<{ Params: { id: string }; Body: CommandRequest }>('/api/v1/routes/:id/commands', { preHandler: authenticate, schema: { body: commandsSchema } }, async request => response(request, await store.commands(request.auth!.user.id, request.params.id, request.body)));
   registerRecordRoutes(app, database, config, { authenticate, respond: response });
   registerPhotoRoutes(app, database, config, { authenticate, respond: response });
+  registerWorkspaceRoutes(app, database, config, { authenticate, respond: response });
   registerAdminRoutes(app, database, { authenticate, respond: response });
   registerMapRoutes(app, database, config, { authenticate, respond: response }, dependencies.mapFetch);
   registerRoutingRoutes(app, database, config, { authenticate, respond: response }, dependencies);
