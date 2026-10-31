@@ -38,10 +38,11 @@ export function photoService(database: Database) {
   }
   return {
     library,
-    async save(ownerId: string, body: PhotoSave) {
+    async save(ownerId: string, body: PhotoSave, auditActorId?: string) {
       return db.transaction(async ex => {
         await ex.select({ id: s.users.id }).from(s.users).where(eq(s.users.id, ownerId)).for('update');
-        const cached = await storage.replay(ex, ownerId, 'photo-save', body.clientMutationId, body); if (cached.found) return cached.response;
+        const scope = auditActorId ? 'admin-photo-save:' + auditActorId : 'photo-save';
+        const cached = await storage.replay(ex, ownerId, scope, body.clientMutationId, body); if (cached.found) return cached.response;
         if (new Set(body.items.map(i => i.mediaId)).size !== body.items.length) throw new DomainError('DUPLICATE_PHOTO', '同一张照片不能重复保存。');
         for (const item of body.items) {
           if (!isDate(item.takenOn)) throw new DomainError('INVALID_DATE', '请填写有效的拍摄日期。');
@@ -49,10 +50,12 @@ export function photoService(database: Database) {
           const [media] = await ex.select().from(s.media).where(and(eq(s.media.id, item.mediaId), eq(s.media.ownerId, ownerId), eq(s.media.state, 'ready')));
           if (!media) throw new DomainError('NOT_FOUND', '照片不存在或无权使用。', 404);
           const [old] = await ex.select().from(s.photoMemories).where(eq(s.photoMemories.mediaId, item.mediaId));
+          if (auditActorId && old?.hidden) throw new DomainError('PHOTO_HIDDEN', '这张照片已隐藏，请先在回忆中核对。', 409);
           if ((old?.version ?? 0) !== item.baseVersion) throw new DomainError('VERSION_CONFLICT', '照片信息已在其他页面更新，请重新打开后修改。', 409);
           const fields = { takenOn: item.takenOn, place: item.place ? { ...item.place, label: item.place.label.trim(), cityName: item.place.cityName.trim() } : null, note: item.note, hidden: false, updatedAt: new Date() };
           if (old) await ex.update(s.photoMemories).set({ ...fields, version: old.version + 1 }).where(eq(s.photoMemories.mediaId, item.mediaId));
           else await ex.insert(s.photoMemories).values({ ...fields, mediaId: item.mediaId, ownerId, createdAt: new Date() });
+          if (auditActorId) await ex.insert(s.auditEvents).values({ id: randomUUID(), actorId: auditActorId, action: 'photo.update', targetId: item.mediaId, createdAt: new Date() });
         }
         if (body.groupNote) {
           const n = body.groupNote;
@@ -62,7 +65,7 @@ export function photoService(database: Database) {
           if (old) await ex.update(s.photoNotes).set({ note: n.note, version: old.version + 1 }).where(eq(s.photoNotes.id, old.id));
           else await ex.insert(s.photoNotes).values({ id: randomUUID(), ownerId, groupKey: n.key, note: n.note });
         }
-        const result = { saved: body.items.map(p => p.mediaId) }; await storage.remember(ex, ownerId, 'photo-save', body.clientMutationId, body, result); return result;
+        const result = { saved: body.items.map(p => p.mediaId) }; await storage.remember(ex, ownerId, scope, body.clientMutationId, body, result); return result;
       });
     },
     async remove(ownerId: string, mediaId: string, body: { baseVersion: number; clientMutationId: string }) {

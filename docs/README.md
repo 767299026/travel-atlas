@@ -11,6 +11,7 @@
 | [使用端原型设计](prototype-design.md) | 品牌、四个入口、流程、v1–v4 演进 | 页面评审与前端实现 |
 | [OpenDesign 静态反向同步](opendesign-static-sync.md) | 当前网页导出为可编辑 HTML／CSS、页面目录、备份与原型预览 | 同步页面与设计评审 |
 | [OpenDesign 提示词归档](opendesign-prompts.md) | v2–v4 修改提示词及后续约定 | 用户在 OpenDesign 迭代 |
+| [后台资料整理](admin-curation.md) | 待整理筛选、照片受控预览／日期备注位置编辑、旧日记兼容、审计与两轮自审 | 后台管理完善 |
 | [独立管理工作台](admin-console.md) | 六个管理模块、权限、数据口径、分享撤销、两轮自审与独立预览 | 管理端设计与实现 |
 | [旅程工作区落地](journey-workspace-implementation.md) | Vue／MySQL 工作区、真实地图搜索、自动保存、补记与删除、两轮审核及发布 | 旅程实现与验证 |
 | [旅程原型提示词](journey-prototype-prompt.md) | 轻量新建、搜索连续添加、待安排／分天、批量整理与删除撤销的首版原型 | 旅程原型预览与评审 |
@@ -21,7 +22,7 @@
 | [社区地图与户外数据源](community-outdoor-maps.md) | OSM／OCM、户外底图、线路与路由、轻量接入 | 户外图源与社区数据选型 |
 | [行程与路线数据模型草案](route-domain-model.md) | 计划／实际、地点、分段、来源、坐标、统计与版本 | 建表与业务实现前 |
 | [路线 API 与适配草案](route-api-contract.md) | 编辑保存、任务候选、导入导出、供应商与错误契约 | API／客户端实现前 |
-| [后续建设顺序](next-steps.md) | 当前建议优先级、运行保障、管理端整理、思源与 AI 的分批验收标准 | 后续节点规划与优先级调整 |
+| [后续建设顺序](next-steps.md) | 后台优先、运行保障后置；思源与 AI 的分批验收标准 | 后续节点规划与优先级调整 |
 | [首版实施清单](implementation-plan.md) | 里程碑、首批页面／接口／表、验收与前置配置 | 开发拆分与交付核对 |
 | [OpenDesign 源码复用](prototype-reuse.md) | 原型 CSS／图标／HTML 迁移、来源和复用边界 | 原型更新与 Vue 页面开发 |
 | [开发运行与阶段验证](development.md) | 已实现功能、启动、迁移、测试、Nginx 接入与限制 | 实现、验证与部署准备 |

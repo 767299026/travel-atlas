@@ -1,3 +1,5 @@
+import { adminPhotos, registerAdminPhotoRoutes } from './admin-photos.js';
+import { adminFilters } from '../../packages/contracts/src/admin.js';
 import { randomUUID, createHmac } from 'node:crypto';
 import { and, asc, count, desc, eq, gt, isNull, or, sql, type SQLWrapper, type SQL } from 'drizzle-orm';
 import type { MySqlTable } from 'drizzle-orm/mysql-core';
@@ -14,34 +16,33 @@ export function registerAdminConsole(app: FastifyInstance, database: Database, c
  const { db, schema: s } = database;
  const auth = { preHandler: async (request: Parameters<RouteContext['authenticate']>[0]) => { await context.authenticate(request); if (request.auth!.user.role !== 'owner') throw new DomainError('FORBIDDEN', '仅管理员可以访问管理端。', 403); } };
  const query = Type.Object({ page: Type.Optional(Type.String({ pattern: '^[1-9][0-9]{0,3}$' })), q: Type.Optional(Type.String({ maxLength: 100 })) }, { additionalProperties: false });
- type Query = { page?: string; q?: string };
+ type Query = { page?: string; q?: string; status?: string };
+ const catalogQuery=Type.Object({...query.properties,status:Type.Optional(Type.String({maxLength:40}))},{additionalProperties:false});
+ const photoCatalog=adminPhotos(database);registerAdminPhotoRoutes(app,database,config,auth,context);
  const paging = (q: Query) => ({ page: Number(q.page ?? 1), pageSize: 20, offset: (Number(q.page ?? 1) - 1) * 20 });
  const pattern = (q: Query) => '%' + (q.q ?? '').trim().replace(/[!%_]/g, c => '!' + c) + '%';
  const contains = (column: SQLWrapper, q: Query) => sql`${column} LIKE ${pattern(q)} ESCAPE '!'`;
  const total = async (table: MySqlTable, where?: SQL) => Number((await db.select({ n: count() }).from(table).where(where))[0]?.n ?? 0);
  const owner = { ownerId: s.users.id, ownerName: s.users.displayName };
  const state = (row: Pick<typeof s.shares.$inferSelect,'id'|'tokenHash'|'revokedAt'|'expiresAt'>, active: boolean) => row.revokedAt ? 'revoked' : !active ? 'disabled' : !config.shareSecret || hashToken(createHmac('sha256', config.shareSecret).update('travel-atlas-share-v1:' + row.id).digest('base64url')) !== row.tokenHash ? 'invalid' : row.expiresAt <= new Date() ? 'expired' : 'active';
- const size = (n:number) => n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
  const details = (values: Record<string, unknown>) => Object.entries(values).map(([label, value]) => ({ label, value: value == null || value === '' ? '—' : String(value) }));
  async function list(resource: AdminResource, q: Query) {
   const { page, pageSize, offset } = paging(q); let items: AdminEntry[] = [], n = 0;
+  if(q.status && !adminFilters[resource].some(f=>f.value===q.status))throw new DomainError('VALIDATION_ERROR','该资料类型不支持此筛选。',400);
   if (resource === 'journeys') {
-   const where = q.q?.trim() ? or(contains(s.journeys.title,q), contains(s.journeys.destinations,q), contains(s.users.displayName,q)) : undefined;
+   const where = and(q.status?eq(s.journeys.status,q.status as 'planning'|'completed'|'archived'):undefined,q.q?.trim() ? or(contains(s.journeys.title,q), contains(s.journeys.destinations,q), contains(s.users.displayName,q)) : undefined);
    n = Number((await db.select({ n: count() }).from(s.journeys).innerJoin(s.users, eq(s.users.id,s.journeys.ownerId)).where(where))[0]?.n ?? 0);
    const rows = await db.select({ row:s.journeys,...owner }).from(s.journeys).innerJoin(s.users,eq(s.users.id,s.journeys.ownerId)).where(where).orderBy(desc(s.journeys.updatedAt),asc(s.journeys.id)).limit(pageSize).offset(offset);
    items = rows.map(({row,...user})=>({id:row.id,title:row.title,subtitle:row.destinations.join(' · ') || '目的地待定',...user,status:row.status,updatedAt:row.updatedAt.toISOString(),details:details({'目的地':row.destinations.join(' · '),'时区':row.timezone,'版本':row.version,'创建时间':row.createdAt.toISOString()})}));
   } else if (resource === 'photos') {
-   const where = and(eq(s.media.state,'ready'),q.q?.trim()?or(contains(s.media.filename,q),contains(s.users.displayName,q)):undefined);
-   n = Number((await db.select({n:count()}).from(s.media).innerJoin(s.users,eq(s.users.id,s.media.ownerId)).where(where))[0]?.n??0);
-   const rows=await db.select({row:s.media,memory:s.photoMemories,...owner}).from(s.media).innerJoin(s.users,eq(s.users.id,s.media.ownerId)).leftJoin(s.photoMemories,eq(s.photoMemories.mediaId,s.media.id)).where(where).orderBy(desc(s.media.createdAt),asc(s.media.id)).limit(pageSize).offset(offset);
-   items=rows.map(({row,memory,...user})=>({id:row.id,title:row.filename,subtitle:`${row.width} × ${row.height} · ${size(row.storedBytes)}`,...user,status:memory?.hidden?'hidden':memory?.place?.position?'located':memory?.place?'place_only':'unlocated',updatedAt:row.createdAt.toISOString(),details:details({'拍摄日期':memory?.takenOn,'确认地点':memory?.place?.label,'短备注':memory?.note,'原图大小':row.originalBytes+' B','存储总量':row.storedBytes+' B'})}));
+   return photoCatalog.list(q.status??'',q.q?.trim()?or(contains(s.media.filename,q),contains(s.users.displayName,q)):undefined,page);
   } else if(resource==='visits') {
-   const where=q.q?.trim()?or(contains(s.visits.label,q),contains(s.visits.region,q),contains(s.users.displayName,q)):undefined;
+   const where=and(q.status==='unassigned'?isNull(s.visits.place):q.status==='assigned'?sql`${s.visits.place} IS NOT NULL`:undefined,q.q?.trim()?or(contains(s.visits.label,q),contains(s.visits.region,q),contains(s.users.displayName,q)):undefined);
    n=Number((await db.select({n:count()}).from(s.visits).innerJoin(s.users,eq(s.users.id,s.visits.ownerId)).where(where))[0]?.n??0);
    const rows=await db.select({row:s.visits,...owner}).from(s.visits).innerJoin(s.users,eq(s.users.id,s.visits.ownerId)).where(where).orderBy(desc(s.visits.createdAt),asc(s.visits.id)).limit(pageSize).offset(offset);
    items=rows.map(({row,...user})=>({id:row.id,title:row.label,subtitle:row.region,...user,status:row.place?'assigned':'unassigned',updatedAt:row.createdAt.toISOString(),details:details({'到访日期':row.visitedOn,'备注':row.note,'所属旅程 ID':row.journeyId})}));
   } else if(resource==='diaries') {
-   const where=q.q?.trim()?or(contains(s.diaries.title,q),contains(s.users.displayName,q)):undefined;
+   const where=and(q.status?eq(s.diaries.status,q.status as 'draft'|'written'):undefined,q.q?.trim()?or(contains(s.diaries.title,q),contains(s.users.displayName,q)):undefined);
    n=Number((await db.select({n:count()}).from(s.diaries).innerJoin(s.users,eq(s.users.id,s.diaries.ownerId)).where(where))[0]?.n??0);
    const rows=await db.select({id:s.diaries.id,title:s.diaries.title,status:s.diaries.status,occurredOn:s.diaries.occurredOn,updatedAt:s.diaries.updatedAt,...owner}).from(s.diaries).innerJoin(s.users,eq(s.users.id,s.diaries.ownerId)).where(where).orderBy(desc(s.diaries.updatedAt),asc(s.diaries.id)).limit(pageSize).offset(offset);
    items=rows.map(row=>({...row,subtitle:row.occurredOn??'日期未填写',updatedAt:row.updatedAt.toISOString(),details:details({'记录日期':row.occurredOn})}));
@@ -51,18 +52,18 @@ export function registerAdminConsole(app: FastifyInstance, database: Database, c
    const rows=await db.select({row:s.shares,active:s.users.active,...owner}).from(s.shares).innerJoin(s.users,eq(s.users.id,s.shares.ownerId)).where(where).orderBy(desc(s.shares.createdAt),asc(s.shares.id)).limit(pageSize).offset(offset);
    items=rows.map(({row,active,...user})=>({id:row.id,title:row.snapshot.title,subtitle:row.snapshot.layer==='actual'?'实际记录快照':'计划安排快照',...user,status:state(row,active),updatedAt:row.createdAt.toISOString(),details:details({'到期时间':row.expiresAt.toISOString(),'撤销时间':row.revokedAt?.toISOString(),'图文篇数':row.snapshot.diaries.length,'照片张数':row.snapshot.diaries.reduce((n,d)=>n+d.photos.length,0)})}));
   }
-  return { items,total:n,page,pageSize };
+  return { items:items.map(item=>({...item,resource,...(resource==='journeys'?{editPath:'/journeys/'+item.id}:resource==='diaries'?{editPath:'/diaries/'+item.id+'/edit'}:resource==='visits'?{editPath:'/journeys/'+item.details.find(d=>d.label==='所属旅程 ID')?.value+'/actual'}:{})})),total:n,page,pageSize };
  }
- app.get<{Params:{resource:AdminResource};Querystring:Query}>('/api/v1/admin/catalog/:resource',{...auth,schema:{params:Type.Object({resource:Type.Union(['journeys','photos','visits','diaries','shares'].map(v=>Type.Literal(v)))}),querystring:query}},async request=>context.respond(request,await list(request.params.resource,request.query)));
+ app.get<{Params:{resource:AdminResource};Querystring:Query}>('/api/v1/admin/catalog/:resource',{...auth,schema:{params:Type.Object({resource:Type.Union(['journeys','photos','visits','diaries','shares'].map(v=>Type.Literal(v)))}),querystring:catalogQuery}},async request=>context.respond(request,await list(request.params.resource,request.query)));
  app.get('/api/v1/admin/dashboard',auth,async request=>{
-  const [journeys,photos,visits,places,diaries,users,activeUsers,unlocatedPhotos,unassignedVisits,failedJobs,recent,shares]=await Promise.all([
+  const [journeys,photos,visits,places,diaries,users,activeUsers,unlocatedPhotos,undatedPhotos,unassignedVisits,failedJobs,recent,shares]=await Promise.all([
    total(s.journeys),total(s.media,eq(s.media.state,'ready')),total(s.visits),total(s.placeRecords,eq(s.placeRecords.kind,'visited')),total(s.diaries),total(s.users),total(s.users,eq(s.users.active,true)),
-   db.select({n:count()}).from(s.media).leftJoin(s.photoMemories,eq(s.photoMemories.mediaId,s.media.id)).where(and(eq(s.media.state,'ready'),or(isNull(s.photoMemories.mediaId),and(eq(s.photoMemories.hidden,false),sql`COALESCE(JSON_TYPE(JSON_EXTRACT(${s.photoMemories.place}, '$.position')), 'NULL') = 'NULL'`)))),
+   photoCatalog.count('needs_location'),photoCatalog.count('needs_date'),
    total(s.visits,isNull(s.visits.place)),total(s.routingJobs,eq(s.routingJobs.status,'failed')),list('journeys',{}),
    db.select({row:{id:s.shares.id,tokenHash:s.shares.tokenHash,revokedAt:s.shares.revokedAt,expiresAt:s.shares.expiresAt},active:s.users.active}).from(s.shares).innerJoin(s.users,eq(s.users.id,s.shares.ownerId)).where(and(isNull(s.shares.revokedAt),gt(s.shares.expiresAt,new Date())))
   ]);
   const [media]=await db.select({n:sql<string>`COALESCE(SUM(${s.media.storedBytes}),0)`}).from(s.media).where(eq(s.media.state,'ready'));
-  return context.respond(request,{journeys,photos,visits,places,diaries,users,activeUsers,activeShares:shares.filter(r=>state(r.row,r.active)==='active').length,mediaBytes:Number(media?.n??0),attention:{unlocatedPhotos:Number(unlocatedPhotos[0]?.n??0),unassignedVisits,failedJobs},recent:recent.items.slice(0,5),checkedAt:new Date().toISOString()});
+  return context.respond(request,{journeys,photos,visits,places,diaries,users,activeUsers,activeShares:shares.filter(r=>state(r.row,r.active)==='active').length,mediaBytes:Number(media?.n??0),attention:{unlocatedPhotos,undatedPhotos,unassignedVisits,failedJobs},recent:recent.items.slice(0,5),checkedAt:new Date().toISOString()});
  });
  app.get('/api/v1/admin/services',auth,async request=>{
   await db.execute(sql`SELECT 1`);
