@@ -21,6 +21,7 @@
 | [社区地图与户外数据源](community-outdoor-maps.md) | OSM／OCM、户外底图、线路与路由、轻量接入 | 户外图源与社区数据选型 |
 | [行程与路线数据模型草案](route-domain-model.md) | 计划／实际、地点、分段、来源、坐标、统计与版本 | 建表与业务实现前 |
 | [路线 API 与适配草案](route-api-contract.md) | 编辑保存、任务候选、导入导出、供应商与错误契约 | API／客户端实现前 |
+| [后续建设顺序](next-steps.md) | 当前建议优先级、运行保障、管理端整理、思源与 AI 的分批验收标准 | 后续节点规划与优先级调整 |
 | [首版实施清单](implementation-plan.md) | 里程碑、首批页面／接口／表、验收与前置配置 | 开发拆分与交付核对 |
 | [OpenDesign 源码复用](prototype-reuse.md) | 原型 CSS／图标／HTML 迁移、来源和复用边界 | 原型更新与 Vue 页面开发 |
 | [开发运行与阶段验证](development.md) | 已实现功能、启动、迁移、测试、Nginx 接入与限制 | 实现、验证与部署准备 |
