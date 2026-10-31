@@ -234,3 +234,10 @@ M3 的 `npm run test:browser:m3` 与真实服务 `npm run test:browser:amap` 复
 `npm run test:browser:workspace` 检查实际 API／Vue 与隔离地图交互；`npm run test:browser:workspace-real` 在 HTTPS 域名上下文访问真实高德搜索与底图，业务请求全部转发到临时库后端。使用 `PLAYWRIGHT_MODULE`／`FRONTEND_TEST_DIST` 指定本机工具与隔离构建，真实 SDK 在无 GPU 浏览器中需 `BROWSER_SOFTWARE_VECTOR=true`。所有浏览器套件共用临时端口，顺序运行；测试结束删除临时表和媒体。模型、自动保存／冲突、删除范围与两轮自审见 [旅程工作区](journey-workspace-implementation.md)。
 
 发布继续使用 screen，保留旧 API／前端构建与旧哈希静态资源，健康检查失败恢复构建，不自动回退或删除新列。实际发布路径、SQL 备份、数据指纹、验证截图只存忽略的 `data/journey-workspace-20261029/`。不改管理端、BRouter、反代和 OpenDesign 原型。
+
+
+## 2026-10-31 独立管理工作台
+
+`admin/` 扩展为概览、内容台账、账号、分享、服务状态与操作记录六个模块；新接口位于 `backend/src/admin-console.ts`，均需 owner 权限。管理员读取全局台账，账号编辑仍使用版本冲突与会话撤销；分享撤销写审计且不输出凭证。详细数据口径、范围与两轮审核见 [管理专题](admin-console.md)。
+
+本轮无数据库结构迁移或正式演示数据写入；继续 `screen` 托管 API 3080 与管理端 5179，不改主站 5178、区域路由与反代。`npm run test:browser:admin` 使用随机前缀表、临时媒体；可用 `ADMIN_TEST_DIST` 指向隔离构建，用 `ADMIN_CHECK_DIR` 指定私有证据目录。与其他浏览器夹具共享端口，必须顺序执行。管理端不再导入整份使用端 CSS，只复用品牌、图标与弹窗行为，避免页面样式干扰。

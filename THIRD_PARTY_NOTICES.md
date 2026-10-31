@@ -43,3 +43,7 @@ The user-maintained OpenDesign photo memories CSS (2026-10-27) is adapted in `fr
 ## Journey workspace
 
 The user-maintained revised OpenDesign journey workspace CSS is adapted in `frontend/src/styles/journey-workspace.css` (2026-10-29), retaining the established prototype style notices. Its local demonstration search library, photographs, and OpenStreetMap reference extracts are not imported. The Vue application uses the existing authenticated AMap JS SDK integration with visible provider attribution. See [implementation notes](docs/journey-workspace-implementation.md).
+
+## Independent administration workspace
+
+The 2026-10-31 admin application reuses the existing OpenDesign-derived brand colors, icon paths and modal structure/behavior, with independent administration layouts and CSS. It imports no prototype photographs or demonstration records and adds no UI framework dependency. Existing prototype notices continue to apply; see [administration notes](docs/admin-console.md).

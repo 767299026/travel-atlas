@@ -1,3 +1,5 @@
+import { registerAdminConsole } from './admin-console.js';
+import type { AppConfig } from './config.js';
 import { randomUUID } from 'node:crypto';
 import { and, asc, count, eq, gt, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
@@ -7,7 +9,8 @@ import { passwordSchema, userCreateSchema, userUpdateSchema } from './record-sch
 import { hashPassword } from './security.js';
 import { DomainError, type AdminUser } from '../../packages/contracts/src/index.js';
 
-export function registerAdminRoutes(app: FastifyInstance, database: Database, context: RouteContext) {
+export function registerAdminRoutes(app: FastifyInstance, database: Database, context: RouteContext, config: AppConfig) {
+  registerAdminConsole(app, database, config, context);
   const { db, schema: s } = database; const { respond } = context; let hashing = 0;
   const authenticate = async (request: Parameters<RouteContext['authenticate']>[0]) => { await context.authenticate(request); if (request.auth!.user.role !== 'owner') throw new DomainError('FORBIDDEN', '仅管理员可以访问管理端。', 403); };
   const auth = { preHandler: authenticate };

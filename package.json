@@ -51,7 +51,8 @@
     "prototype:install": "tsx scripts/install-opendesign.ts",
     "test:browser:photos": "tsx scripts/browser-photo-memories-check.ts",
     "test:browser:workspace": "tsx scripts/browser-workspace-check.ts",
-    "test:browser:workspace-real": "tsx scripts/browser-workspace-real-check.ts"
+    "test:browser:workspace-real": "tsx scripts/browser-workspace-real-check.ts",
+    "test:browser:admin": "tsx scripts/browser-admin-check.ts"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

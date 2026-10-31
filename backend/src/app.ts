@@ -83,7 +83,7 @@ export async function buildApp(config: AppConfig, database: Database, dependenci
   registerRecordRoutes(app, database, config, { authenticate, respond: response });
   registerPhotoRoutes(app, database, config, { authenticate, respond: response });
   registerWorkspaceRoutes(app, database, config, { authenticate, respond: response });
-  registerAdminRoutes(app, database, { authenticate, respond: response });
+  registerAdminRoutes(app, database, { authenticate, respond: response }, config);
   registerMapRoutes(app, database, config, { authenticate, respond: response }, dependencies.mapFetch);
   registerRoutingRoutes(app, database, config, { authenticate, respond: response }, dependencies);
   registerPersonalRoutes(app, database, { authenticate, respond: response });
