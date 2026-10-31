@@ -47,7 +47,7 @@ npm run dev
 - `npm run build` 后，分别运行 `npm run start:api` 与 `npm run preview` 可验证构建结果。Vite preview 用于本机检查，正式静态资源交给 Nginx。
 - 后端源码监听和前端 HMR：`npm run dev:api`／`npm run dev:web`。不需要安卓 SDK 或安卓包。
 
-管理端保持独立入口；本机访问白名单包含 5179。远程访问可使用 `ssh -L 5179:127.0.0.1:5179 <服务器>` 后在自己电脑打开 `http://127.0.0.1:5179`。未来单独配置域名时，同步添加精确 `APP_ORIGINS`，无需把后台加入主站。
+管理端保持独立入口；本机访问白名单包含 5179。远程访问可使用 `ssh -L 5179:127.0.0.1:5179 <服务器>` 后在自己电脑打开 `http://127.0.0.1:5179`。当前管理域名为 `http://travel-backend.yiqu.love`，Vite 精确 Host 白名单与 `.env` 精确 `APP_ORIGINS` 已补齐；仍可 SSH 转发访问。管理域名 TLS 尚未配置，详见 [管理域名接入记录](admin-console.md#2026-10-31-管理域名接入修正)。
 
 ## Nginx／OpenResty 接入
 
